@@ -38,7 +38,7 @@
   width: 230px;
   white-space: normal;
   pointer-events: none;
-  z-index: 1000;
+  z-index: 9999;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
   text-transform: none;
   letter-spacing: normal;

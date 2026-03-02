@@ -465,6 +465,15 @@ def list_keywords(user: str = Depends(get_current_user)):
     return {"keywords": [dict(r) for r in rows]}
 
 
+@router.post("/keywords/{keyword}/track")
+def track_keyword(keyword: str, user: str = Depends(get_current_user)):
+    """Add a keyword to tracking and kick off an immediate background scrape."""
+    keyword = _normalize(keyword)
+    _ensure_keyword_tracked(keyword)
+    threading.Thread(target=scrape_single_keyword, args=(keyword,), daemon=True).start()
+    return {"keyword": keyword, "status": "tracking"}
+
+
 @router.post("/keywords/{keyword}/activate")
 def activate_keyword(keyword: str, user: str = Depends(get_current_user)):
     """Promote a pending_review keyword to active."""

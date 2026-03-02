@@ -1,0 +1,689 @@
+.vintage-explorer {
+  min-height: 100vh;
+  background: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ──────────────────────────────────────────── */
+.vintage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: #111111;
+  border-bottom: 1px solid #2e2e2e;
+  flex-shrink: 0;
+}
+
+.vintage-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.vintage-header h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #f0f0f0;
+  letter-spacing: 0.02em;
+}
+
+.nav-toggle {
+  display: flex;
+  gap: 0.25rem;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.vintage-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0 2rem;
+  border-bottom: 2px solid #333333;
+}
+
+.vintage-tab {
+  background: none;
+  border: none;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #888888;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.vintage-tab:hover {
+  color: #f0f0f0;
+}
+
+.vintage-tab--active {
+  color: #f0a8b8;
+  border-bottom-color: #f0a8b8;
+}
+
+.nav-toggle-btn {
+  padding: 0.4rem 1rem;
+  background: transparent;
+  color: #888;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.2s, color 0.2s;
+}
+
+.nav-toggle-btn.active {
+  background: #2a2a2a;
+  color: #f0f0f0;
+}
+
+.nav-toggle-btn:hover:not(.active) {
+  color: #ccc;
+}
+
+.logout-btn {
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: #888;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.2s;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* ── Body layout ──────────────────────────────────────── */
+.vintage-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: calc(100vh - 60px);
+}
+
+/* ── Era Selector Sidebar ─────────────────────────────── */
+.era-selector {
+  width: 240px;
+  min-width: 200px;
+  background: #141414;
+  border-right: 1px solid #2a2a2a;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.era-group {
+  border-bottom: 1px solid #222;
+}
+
+.era-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  color: #888;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+
+.era-group-header:hover {
+  color: #ccc;
+}
+
+.era-group-chevron {
+  font-size: 0.65rem;
+  transition: transform 0.2s;
+}
+
+.era-group-chevron.open {
+  transform: rotate(180deg);
+}
+
+.era-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.5rem 0;
+}
+
+.era-list li {
+  padding: 0;
+}
+
+.era-list-btn {
+  width: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.55rem 1.25rem;
+  text-align: left;
+  color: #aaa;
+  font-size: 0.85rem;
+  transition: background 0.15s, color 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.era-list-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e0e0e0;
+}
+
+.era-list-btn.selected {
+  background: rgba(232, 213, 176, 0.08);
+  color: #f0f0f0;
+  border-left-color: #f0a8b8;
+}
+
+/* ── Right panel ──────────────────────────────────────── */
+.vintage-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.vintage-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60%;
+  color: #555;
+  gap: 0.75rem;
+}
+
+.vintage-empty-state-icon {
+  font-size: 3rem;
+  opacity: 0.4;
+}
+
+.vintage-empty-state p {
+  font-size: 0.95rem;
+}
+
+/* ── Era Trends ───────────────────────────────────────── */
+.era-trends {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.era-trends-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #f0f0f0;
+  margin: 0;
+}
+
+.era-trends-period {
+  font-size: 0.85rem;
+  color: #666;
+  margin: 0;
+}
+
+.era-summary {
+  background: #1f1f1f;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  color: #c0c0c0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.era-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.era-section {
+  background: #1f1f1f;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem;
+}
+
+.era-section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 0.75rem;
+}
+
+.era-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.era-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.07);
+  color: #ccc;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
+}
+
+.era-chip.color-chip {
+  padding-left: 0.5rem;
+}
+
+.color-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+/* ── Era Image Grid ───────────────────────────────────── */
+.era-image-grid-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.era-image-grid-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #666;
+}
+
+.era-image-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.era-image-item {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #1f1f1f;
+  aspect-ratio: 3 / 4;
+}
+
+.era-image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.era-image-item:hover img {
+  transform: scale(1.03);
+}
+
+.era-image-source-badge {
+  position: absolute;
+  bottom: 0.5rem;
+  left: 0.5rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.era-image-item:hover .era-image-source-badge {
+  opacity: 1;
+}
+
+.era-image-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+  text-decoration: none;
+}
+
+/* ── Skeleton loading ─────────────────────────────────── */
+.skeleton-box {
+  background: linear-gradient(90deg, #222 25%, #2a2a2a 50%, #222 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 8px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.era-image-skeleton {
+  aspect-ratio: 3 / 4;
+}
+
+.era-images-loading {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.era-images-empty {
+  color: #555;
+  font-size: 0.85rem;
+  padding: 1rem 0;
+}
+
+/* ── Era Block Grid (landing) ─────────────────────────── */
+.era-block-grid {
+  display: flex;
+  gap: 1.5rem;
+  padding: 2rem;
+  flex: 1;
+  overflow-y: auto;
+  align-items: flex-start;
+}
+
+.era-block-card {
+  flex: 1;
+  min-width: 0;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  transition: border-color 0.2s, transform 0.15s;
+}
+
+.era-block-card:hover {
+  border-color: #f0a8b8;
+  transform: translateY(-3px);
+}
+
+.era-block-card__images {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  background: #111;
+}
+
+.era-block-card__image-cell {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+
+.era-block-card__image-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.era-block-card:hover .era-block-card__image-cell img {
+  transform: scale(1.04);
+}
+
+.era-block-card__image-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #2a2a2a;
+  animation: ve-pulse 1.5s ease-in-out infinite;
+}
+
+.era-block-card__image-label {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #ccc;
+  font-size: 0.63rem;
+  padding: 2px 5px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.era-block-card__footer {
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.era-block-card__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f0f0f0;
+  margin-bottom: 0.2rem;
+}
+
+.era-block-card__range {
+  font-size: 0.8rem;
+  color: #f0a8b8;
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+}
+
+.era-block-card__desc {
+  font-size: 0.82rem;
+  color: #888;
+  line-height: 1.55;
+  margin: 0 0 0.8rem;
+}
+
+.era-block-card__cta {
+  font-size: 0.82rem;
+  color: #f0a8b8;
+  font-weight: 600;
+}
+
+/* ── Era Picker (block → era) ─────────────────────────── */
+.era-block-eras {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 2rem 2rem;
+}
+
+.era-block-eras__header {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.era-block-eras__back {
+  background: none;
+  border: 1px solid #444;
+  color: #aaa;
+  border-radius: 6px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.era-block-eras__back:hover {
+  color: #f0f0f0;
+  border-color: #888;
+}
+
+.era-block-eras__title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #f0f0f0;
+  margin: 0 0 0.15rem;
+}
+
+.era-block-eras__range {
+  font-size: 0.85rem;
+  color: #f0a8b8;
+  margin: 0;
+}
+
+.era-block-eras__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  gap: 1rem;
+}
+
+.era-era-card {
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  width: 100%;
+  transition: border-color 0.2s, transform 0.15s;
+}
+
+.era-era-card:hover {
+  border-color: #f0a8b8;
+  transform: translateY(-2px);
+}
+
+.era-era-card__img {
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #2a2a2a;
+}
+
+.era-era-card__img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.era-era-card:hover .era-era-card__img img {
+  transform: scale(1.05);
+}
+
+.era-era-card__img-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #2a2a2a;
+  animation: ve-pulse 1.5s ease-in-out infinite;
+}
+
+.era-era-card__body {
+  padding: 0.65rem 0.75rem 0.75rem;
+}
+
+.era-era-card__label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #f0f0f0;
+  line-height: 1.35;
+  margin-bottom: 0.2rem;
+}
+
+.era-era-card__period {
+  font-size: 0.75rem;
+  color: #f0a8b8;
+}
+
+/* ── Era detail back button ───────────────────────────── */
+.era-detail-back-btn {
+  display: inline-block;
+  background: none;
+  border: 1px solid #444;
+  color: #aaa;
+  border-radius: 6px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-bottom: 1.25rem;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.era-detail-back-btn:hover {
+  color: #f0f0f0;
+  border-color: #888;
+}
+
+@keyframes ve-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* ── Top Garments section ─────────────────────────────── */
+.era-section--garments {
+  grid-column: 1 / -1;
+}
+
+.era-garment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.era-garment-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0.6rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #252525;
+  border-radius: 7px;
+  transition: border-color 0.15s;
+}
+
+.era-garment-item:hover {
+  border-color: #333;
+}
+
+.era-garment-rank {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #444;
+  min-width: 1.5rem;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.era-garment-name {
+  flex: 1;
+  font-size: 0.85rem;
+  color: #c8c8c8;
+}
+
+.era-garment-price {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f0a8b8;
+  flex-shrink: 0;
+}
+
+.era-garment-price--na {
+  color: #444;
+  font-weight: 400;
+}

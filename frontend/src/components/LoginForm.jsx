@@ -31,7 +31,7 @@ export default function LoginForm() {
   return (
     <div className="login-page">
       <div className="login-container">
-        <h1 className="login-title">Fashion Trend Forecaster</h1>
+        <h1 className="login-title">Fashion Resale Tool</h1>
         <p className="login-subtitle">
           Detect and predict fashion resale trend cycles
         </p>

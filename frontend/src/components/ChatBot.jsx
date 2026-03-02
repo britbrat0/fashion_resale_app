@@ -1,12 +1,16 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import ReactMarkdown from 'react-markdown'
 import api from '../services/api'
 import './ChatBot.css'
 
 const WELCOME = "Hi, I'm Stella — your fashion trend expert. Ask me anything about the trends you're seeing, or ask me to explain a chart, compare keywords, or spot opportunities."
 
-export default function ChatBot({ context }) {
+const ChatBot = forwardRef(function ChatBot({ context }, ref) {
   const [open, setOpen] = useState(false)
+
+  useImperativeHandle(ref, () => ({
+    open: () => setOpen(true),
+  }))
   const [messages, setMessages] = useState([])
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const [input, setInput] = useState('')
@@ -142,4 +146,6 @@ export default function ChatBot({ context }) {
       )}
     </>
   )
-}
+})
+
+export default ChatBot

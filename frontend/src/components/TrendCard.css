@@ -4,7 +4,7 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   cursor: pointer;
   transition: box-shadow 0.2s, transform 0.1s;
-  overflow: hidden;
+  /* overflow: hidden removed — was clipping info tooltips */
 }
 
 .trend-card:hover {
@@ -23,6 +23,7 @@
   align-items: center;
   padding: 1rem 1.25rem;
   gap: 1rem;
+  height: 110px;
 }
 
 .trend-card__rank {
@@ -78,10 +79,14 @@
 .trend-card__thumb-wrap {
   flex-shrink: 0;
   align-self: stretch;
-  /* Bleed past the header's 1rem top/bottom padding so image fills full card height */
   margin: -1rem 0;
   width: 72px;
   overflow: hidden;
+  border-radius: 10px 0 0 10px;
+}
+
+.trend-card--expanded .trend-card__thumb-wrap {
+  border-bottom-left-radius: 0;
 }
 
 .trend-card__thumb {

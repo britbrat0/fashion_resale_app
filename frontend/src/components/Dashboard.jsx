@@ -8,7 +8,7 @@ import KeywordsPanel from './KeywordsPanel'
 import ChatBot from './ChatBot'
 import './Dashboard.css'
 
-export default function Dashboard() {
+export default function Dashboard({ onSwitchToVintage }) {
   const { logout } = useAuth()
   const [period, setPeriod] = useState(7)
   const [searchQuery, setSearchQuery] = useState('')
@@ -193,61 +193,67 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard">
-      <header className="dashboard-header">
-        <h1>Fashion Trend Forecaster</h1>
+      <header className="vintage-header">
+        <div className="vintage-header-left">
+          <h1>Fashion Resale Tool</h1>
+          <div className="nav-toggle">
+            <button className="nav-toggle-btn active">Trend Forecast</button>
+            <button className="nav-toggle-btn" onClick={onSwitchToVintage}>Vintage</button>
+          </div>
+        </div>
         <button onClick={logout} className="logout-btn">Sign Out</button>
       </header>
 
-      <div className="controls-bar">
-        <form onSubmit={handleSearch} className="search-form">
-          <input
-            type="text"
-            placeholder="Search a trend (e.g., vintage denim)..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="search-input"
-          />
-          <button type="submit" className="search-btn" disabled={searchLoading}>
-            {searchLoading ? 'Scraping...' : 'Search'}
-          </button>
-        </form>
-
-        <select
-          value={period}
-          onChange={(e) => setPeriod(Number(e.target.value))}
-          className="period-select"
+      <div className="vintage-tabs">
+        <button
+          className={`vintage-tab ${view !== 'search' && view !== 'compare' && view !== 'keywords' ? 'vintage-tab--active' : ''}`}
+          onClick={() => { setView('top'); setSearchResult(null); setSearchQuery(''); setExpandedKeyword(null) }}
         >
-          <option value={7}>Past 7 days</option>
-          <option value={14}>Past 14 days</option>
-          <option value={30}>Past 30 days</option>
-          <option value={60}>Past 60 days</option>
-          <option value={90}>Past 90 days</option>
-        </select>
+          Top 10 Trends
+        </button>
+        <button
+          className={`vintage-tab ${view === 'keywords' ? 'vintage-tab--active' : ''}`}
+          onClick={() => setView('keywords')}
+        >
+          Track
+        </button>
+        <button
+          className={`vintage-tab ${view === 'compare' ? 'vintage-tab--active' : ''}`}
+          onClick={() => setView('compare')}
+        >
+          Compare
+          {compareKeywords.length > 0 && (
+            <span className="dashboard-tab__badge">{compareKeywords.length}</span>
+          )}
+        </button>
       </div>
 
       <main className="dashboard-content">
-        <div className="dashboard-tabs">
-          <button
-            className={`dashboard-tab ${view !== 'search' && view !== 'compare' && view !== 'keywords' ? 'dashboard-tab--active' : ''}`}
-            onClick={() => { setView('top'); setSearchResult(null); setSearchQuery(''); setExpandedKeyword(null) }}
+        <div className="controls-bar">
+          <form onSubmit={handleSearch} className="search-form">
+            <input
+              type="text"
+              placeholder="Search a trend (e.g., vintage denim)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+            />
+            <button type="submit" className="search-btn" disabled={searchLoading}>
+              {searchLoading ? 'Scraping...' : 'Search'}
+            </button>
+          </form>
+
+          <select
+            value={period}
+            onChange={(e) => setPeriod(Number(e.target.value))}
+            className="period-select"
           >
-            Top 10 Trends
-          </button>
-          <button
-            className={`dashboard-tab ${view === 'keywords' ? 'dashboard-tab--active' : ''}`}
-            onClick={() => setView('keywords')}
-          >
-            Track
-          </button>
-          <button
-            className={`dashboard-tab ${view === 'compare' ? 'dashboard-tab--active' : ''}`}
-            onClick={() => setView('compare')}
-          >
-            Compare
-            {compareKeywords.length > 0 && (
-              <span className="dashboard-tab__badge">{compareKeywords.length}</span>
-            )}
-          </button>
+            <option value={7}>Past 7 days</option>
+            <option value={14}>Past 14 days</option>
+            <option value={30}>Past 30 days</option>
+            <option value={60}>Past 60 days</option>
+            <option value={90}>Past 90 days</option>
+          </select>
         </div>
 
         {view === 'search' ? (

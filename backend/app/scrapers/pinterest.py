@@ -262,3 +262,192 @@ def scrape_pinterest_images(keyword: str) -> list:
         logger.info(f"Pinterest: stored {stored} images for '{keyword}'")
 
     return images
+
+
+def scrape_pinterest_era(era_id: str, search_terms: list) -> bool:
+    """Scrape Pinterest for a vintage era using multiple search terms.
+
+    Two-pass image selection:
+      Pass 1 (diversity): take up to ceil(TARGET / terms) from each search term,
+                          ensuring every aesthetic gets representation.
+      Pass 2 (fill):      use leftover images from any term to reach TARGET=6.
+
+    Uses a single shared browser instance across all terms for speed.
+    Stores images with keyword='vintage:{era_id}' in trend_images.
+    Returns True if any images were stored.
+    """
+    import math
+    keyword = f"vintage:{era_id}"
+    TARGET = 6
+    num_terms = max(len(search_terms), 1)
+    per_term_cap = math.ceil(TARGET / num_terms)
+
+    # Scrape ALL terms first, storing candidates per term.
+    # We collect more than per_term_cap per term so pass 2 has a reserve.
+    term_batches: list[list[dict]] = []
+
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+
+            for term in search_terms:
+                logger.info(f"Pinterest era scrape: trying '{term}' for era '{era_id}'")
+                context = browser.new_context(
+                    user_agent=(
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                    viewport={"width": 1280, "height": 900},
+                )
+                page = context.new_page()
+                page.route(
+                    "**/*.{woff,woff2,ttf,otf,mp4,webm,ogg,mp3}",
+                    lambda route: route.abort(),
+                )
+
+                url = f"https://www.pinterest.com/search/pins/?q={quote_plus(term)}&rs=typed"
+                try:
+                    page.goto(url, timeout=15000, wait_until="domcontentloaded")
+                except Exception:
+                    context.close()
+                    term_batches.append([])
+                    continue
+
+                if "login" in page.url or "signup" in page.url:
+                    logger.warning(f"Pinterest redirected to login for era term '{term}'")
+                    context.close()
+                    term_batches.append([])
+                    continue
+
+                try:
+                    page.wait_for_selector("img[src*='i.pinimg.com']", timeout=10000)
+                except Exception:
+                    context.close()
+                    term_batches.append([])
+                    continue
+
+                # Two scrolls to load more pins before collecting
+                page.evaluate("window.scrollBy(0, 800)")
+                page.wait_for_timeout(1200)
+                page.evaluate("window.scrollBy(0, 800)")
+                page.wait_for_timeout(800)
+
+                img_elements = page.query_selector_all("img[src*='i.pinimg.com']")
+                seen_urls: set[str] = set()
+                images: list[dict] = []
+                for img in img_elements:
+                    src = img.get_attribute("src") or ""
+                    if not src or src in seen_urls:
+                        continue
+                    size_match = re.search(r'/(\d+)x/', src)
+                    if not size_match or int(size_match.group(1)) < 200:
+                        continue
+                    for small, large in [("/236x/", "/564x/"), ("/474x/", "/564x/")]:
+                        src = src.replace(small, large)
+                    alt = img.get_attribute("alt") or ""
+                    if not alt.strip():
+                        continue
+                    if _is_article_pin(alt):
+                        continue
+                    item_url = img.evaluate(
+                        "el => el.closest('a') ? el.closest('a').href : null"
+                    )
+                    seen_urls.add(src)
+                    images.append({
+                        "keyword": keyword,
+                        "source": "pinterest",
+                        "image_url": src,
+                        "title": alt[:200],
+                        "price": None,
+                        "item_url": item_url,
+                    })
+                    # Collect 2× target so text-heavy filter has plenty to reject from
+                    if len(images) >= TARGET * 2:
+                        break
+
+                context.close()
+                term_batches.append(images)
+
+            browser.close()
+
+    except Exception as e:
+        logger.error(f"Pinterest era scrape failed for era '{era_id}': {e}")
+
+    # ── Pass 1: diversity — take up to per_term_cap from each term ──────────
+    collected: list[dict] = []
+    reserve: list[dict] = []
+    seen: set[str] = set()
+
+    for images in term_batches:
+        taken = 0
+        for img in images:
+            url = img["image_url"]
+            if url in seen:
+                continue
+            if taken < per_term_cap:
+                collected.append(img)
+                seen.add(url)
+                taken += 1
+            else:
+                reserve.append(img)
+
+    # ── Pass 2: fill to TARGET using leftover images from any term ──────────
+    for img in reserve:
+        if len(collected) >= TARGET:
+            break
+        url = img["image_url"]
+        if url not in seen:
+            collected.append(img)
+            seen.add(url)
+
+    if not collected:
+        logger.warning(f"Pinterest era scrape: no images found for era '{era_id}'")
+        return False
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn = get_connection()
+
+    # Clean up stale text-heavy images for this era keyword
+    existing = conn.execute(
+        "SELECT id, title FROM trend_images WHERE keyword = ? AND source = 'pinterest'",
+        (keyword,),
+    ).fetchall()
+    bad_ids = [r["id"] for r in existing if _is_article_pin(r["title"] or "")]
+    if bad_ids:
+        conn.execute(
+            f"DELETE FROM trend_images WHERE id IN ({','.join('?' * len(bad_ids))})",
+            bad_ids,
+        )
+        conn.commit()
+
+    stored = 0
+    for img in collected:
+        phash_val, is_text_heavy = _analyze_image(img["image_url"])
+        if is_text_heavy:
+            continue
+        conn.execute(
+            "INSERT OR IGNORE INTO trend_images "
+            "(keyword, source, image_url, title, price, item_url, scraped_at, phash) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (img["keyword"], img["source"], img["image_url"],
+             img["title"], img["price"], img["item_url"], now, phash_val),
+        )
+        stored += 1
+
+    # Prune to 8 most recent for this era keyword
+    conn.execute(
+        """DELETE FROM trend_images WHERE keyword = ? AND id NOT IN (
+            SELECT id FROM trend_images WHERE keyword = ?
+            ORDER BY scraped_at DESC LIMIT 8
+        )""",
+        (keyword, keyword),
+    )
+    conn.commit()
+    conn.close()
+
+    if stored:
+        logger.info(f"Pinterest era scrape: stored {stored} images for era '{era_id}'")
+    return stored > 0
