@@ -8,7 +8,7 @@ import KeywordsPanel from './KeywordsPanel'
 import ChatBot from './ChatBot'
 import './Dashboard.css'
 
-export default function Dashboard({ onSwitchToVintage }) {
+export default function Dashboard({ onGoHome, onSwitchToVintage }) {
   const { logout } = useAuth()
   const [period, setPeriod] = useState(7)
   const [searchQuery, setSearchQuery] = useState('')
@@ -195,7 +195,7 @@ export default function Dashboard({ onSwitchToVintage }) {
     <div className="dashboard">
       <header className="vintage-header">
         <div className="vintage-header-left">
-          <h1>Fashion Resale Tool</h1>
+          <h1 className="hp-nav-title" onClick={onGoHome}>Fashion Resale Tool</h1>
           <div className="nav-toggle">
             <button className="nav-toggle-btn active">Trend Forecast</button>
             <button className="nav-toggle-btn" onClick={onSwitchToVintage}>Vintage</button>

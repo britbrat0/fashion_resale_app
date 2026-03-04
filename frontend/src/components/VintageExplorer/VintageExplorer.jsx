@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import api from '../../services/api'
 import EraSelector from './EraSelector'
@@ -11,7 +11,7 @@ import './VintageExplorer.css'
 
 const findBlock = (eraId) => ERA_BLOCKS.find(b => b.ids.includes(eraId)) || null
 
-export default function VintageExplorer({ onSwitchToDashboard, onSwitchToClassify, initialEraId }) {
+export default function VintageExplorer({ onGoHome, onSwitchToDashboard, onSwitchToClassify, initialEraId }) {
   const { logout } = useAuth()
   const stellaRef = useRef(null)
   const [eras, setEras] = useState([])
@@ -24,6 +24,33 @@ export default function VintageExplorer({ onSwitchToDashboard, onSwitchToClassif
   const [selectedBlock, setSelectedBlock] = useState(
     initialEraId ? findBlock(initialEraId) : null
   )
+
+  // Keyword tracking
+  const [trackedKeywords, setTrackedKeywords] = useState(new Set())
+  const [toast, setToast] = useState(null)
+  const toastTimerRef = useRef(null)
+
+  // Load tracked keywords on mount
+  useEffect(() => {
+    api.get('/trends/keywords/list')
+      .then(res => setTrackedKeywords(new Set((res.data.keywords || []).map(k => k.keyword))))
+      .catch(() => {})
+  }, [])
+
+  const showToast = useCallback((msg) => {
+    setToast(msg)
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000)
+  }, [])
+
+  const handleTrackKeyword = useCallback(async (kw) => {
+    if (trackedKeywords.has(kw)) return
+    try {
+      await api.post(`/trends/keywords/${encodeURIComponent(kw)}/track`)
+      setTrackedKeywords(prev => new Set([...prev, kw]))
+      showToast(`Now tracking "${kw}" on Trend Forecast`)
+    } catch {}
+  }, [trackedKeywords, showToast])
 
   // Fetch era list on mount; pre-select initialEraId if provided
   useEffect(() => {
@@ -75,7 +102,7 @@ export default function VintageExplorer({ onSwitchToDashboard, onSwitchToClassif
     <div className="vintage-explorer">
       <header className="vintage-header">
         <div className="vintage-header-left">
-          <h1>Fashion Resale Tool</h1>
+          <h1 className="hp-nav-title" onClick={onGoHome}>Fashion Resale Tool</h1>
           <div className="nav-toggle">
             <button className="nav-toggle-btn" onClick={onSwitchToDashboard}>
               Trend Forecast
@@ -132,7 +159,12 @@ export default function VintageExplorer({ onSwitchToDashboard, onSwitchToClassif
               </div>
             ) : (
               <>
-                <EraTrends era={eraDetail} marketData={marketData} />
+                <EraTrends
+                  era={eraDetail}
+                  marketData={marketData}
+                  onTrack={handleTrackKeyword}
+                  trackedKeywords={trackedKeywords}
+                />
                 <EraImageGrid eraId={selectedEra?.id} />
               </>
             )}
@@ -144,6 +176,13 @@ export default function VintageExplorer({ onSwitchToDashboard, onSwitchToClassif
         ref={stellaRef}
         context={{ view: 'vintage', era: selectedEra?.label || null }}
       />
+
+      {toast && (
+        <div className="gc-toast">
+          <span className="gc-toast-icon">✓</span>
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

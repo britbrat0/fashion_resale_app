@@ -126,23 +126,37 @@ function getColorSwatch(colorName) {
   return null
 }
 
-function TopGarments({ garments, garmentPrices = {} }) {
+function TopGarments({ garments, garmentPrices = {}, onTrack, trackedKeywords }) {
   if (!garments?.length) return null
+  const trackable = typeof onTrack === 'function'
   return (
     <div className="era-section era-section--garments">
       <div className="era-section-label">Top Garments to Source</div>
       <div className="era-garment-list">
         {garments.map((g, i) => {
           const price = garmentPrices[g]
+          const isTracked = trackable && trackedKeywords?.has(g)
           return (
-            <div key={i} className="era-garment-item">
+            <button
+              key={i}
+              className={`era-garment-item${trackable && !isTracked ? ' era-garment-item--clickable' : ''}${isTracked ? ' era-garment-item--tracked' : ''}`}
+              onClick={() => trackable && !isTracked && onTrack(g)}
+              type="button"
+              disabled={!trackable || isTracked}
+              title={!trackable ? undefined : isTracked ? 'Already tracking on Trend Forecast' : 'Track on Trend Forecast'}
+            >
               <span className="era-garment-rank">#{i + 1}</span>
               <span className="era-garment-name">{g}</span>
               {price != null
                 ? <span className="era-garment-price">${price.toFixed(2)}</span>
                 : <span className="era-garment-price era-garment-price--na">—</span>
               }
-            </div>
+              {trackable && (
+                <span className={`era-garment-track${isTracked ? ' era-garment-track--tracked' : ''}`}>
+                  {isTracked ? '✓' : '+'}
+                </span>
+              )}
+            </button>
           )
         })}
       </div>
@@ -150,21 +164,37 @@ function TopGarments({ garments, garmentPrices = {} }) {
   )
 }
 
-function Section({ label, items, showColors = false }) {
+function Section({ label, items, showColors = false, onTrack, trackedKeywords }) {
   if (!items || items.length === 0) return null
+  const trackable = typeof onTrack === 'function'
   return (
     <div className="era-section">
       <div className="era-section-label">{label}</div>
       <div className="era-chips">
         {items.map((item, i) => {
           const swatch = showColors ? getColorSwatch(item) : null
+          const isTracked = trackable && trackedKeywords?.has(item)
+          if (trackable) {
+            return (
+              <button
+                key={i}
+                className={`era-chip era-chip--trackable${showColors ? ' color-chip' : ''}${isTracked ? ' era-chip--tracked' : ''}`}
+                onClick={() => !isTracked && onTrack(item)}
+                type="button"
+                title={isTracked ? 'Already tracking on Trend Forecast' : 'Track on Trend Forecast'}
+              >
+                {swatch && (
+                  <span className="color-swatch" style={{ background: swatch }} />
+                )}
+                {item}
+                <span className="era-chip-track-icon">{isTracked ? '✓' : '+'}</span>
+              </button>
+            )
+          }
           return (
             <span key={i} className={`era-chip${showColors ? ' color-chip' : ''}`}>
               {swatch && (
-                <span
-                  className="color-swatch"
-                  style={{ background: swatch }}
-                />
+                <span className="color-swatch" style={{ background: swatch }} />
               )}
               {item}
             </span>
@@ -175,7 +205,7 @@ function Section({ label, items, showColors = false }) {
   )
 }
 
-export default function EraTrends({ era, marketData }) {
+export default function EraTrends({ era, marketData, onTrack, trackedKeywords }) {
   if (!era) return null
 
   return (
@@ -190,13 +220,13 @@ export default function EraTrends({ era, marketData }) {
       )}
 
       <div className="era-sections">
-        <Section label="Colors" items={era.colors} showColors />
-        <Section label="Fabrics" items={era.fabrics} />
-        <Section label="Prints & Patterns" items={era.prints} />
-        <Section label="Silhouettes" items={era.silhouettes} />
-        <Section label="Aesthetics" items={era.aesthetics} />
-        <Section label="Brands" items={era.brands} />
-        <TopGarments garments={era.key_garments} garmentPrices={marketData?.garment_prices} />
+        <Section label="Colors" items={era.colors} showColors onTrack={onTrack} trackedKeywords={trackedKeywords} />
+        <Section label="Fabrics" items={era.fabrics} onTrack={onTrack} trackedKeywords={trackedKeywords} />
+        <Section label="Prints & Patterns" items={era.prints} onTrack={onTrack} trackedKeywords={trackedKeywords} />
+        <Section label="Silhouettes" items={era.silhouettes} onTrack={onTrack} trackedKeywords={trackedKeywords} />
+        <Section label="Aesthetics" items={era.aesthetics} onTrack={onTrack} trackedKeywords={trackedKeywords} />
+        <Section label="Brands" items={era.brands} onTrack={onTrack} trackedKeywords={trackedKeywords} />
+        <TopGarments garments={era.key_garments} garmentPrices={marketData?.garment_prices} onTrack={onTrack} trackedKeywords={trackedKeywords} />
       </div>
     </div>
   )

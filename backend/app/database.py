@@ -121,5 +121,39 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_keywords_status ON keywords(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_trend_images_keyword ON trend_images(keyword)")
 
+    # ── Classifier validation dataset ─────────────────────────────────────────
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS validation_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL DEFAULT 'etsy',
+            true_era_id TEXT NOT NULL,
+            true_decade TEXT NOT NULL,
+            title TEXT NOT NULL,
+            tags TEXT,
+            price REAL,
+            item_url TEXT UNIQUE,
+            image_url TEXT,
+            scraped_at TEXT NOT NULL
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS validation_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id INTEGER NOT NULL REFERENCES validation_items(id),
+            predicted_era_id TEXT,
+            predicted_confidence REAL,
+            alternate_era_ids TEXT,
+            is_decade_correct INTEGER,
+            is_era_correct INTEGER,
+            raw_response TEXT,
+            computed_at TEXT NOT NULL,
+            UNIQUE(item_id)
+        )
+    """)
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_val_items_era ON validation_items(true_era_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_val_results_item ON validation_results(item_id)")
+
     conn.commit()
     conn.close()

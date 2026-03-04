@@ -217,7 +217,37 @@ async def classify(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Classification failed: {e}")
 
+    # Attach era accuracy if validation data exists
+    primary_id = result.get("primary_era", {}).get("id")
+    if primary_id:
+        from app.vintage.validation import get_era_accuracy
+        acc = get_era_accuracy(primary_id)
+        if acc:
+            result["era_accuracy"] = acc
+
     return {"status": "ok", "result": result}
+
+
+@router.post("/validation/collect-era")
+def validation_collect_era(era_id: str, target: int = 5, user: str = Depends(get_current_user)):
+    """Background: collect Etsy samples for one era then validate pending items."""
+    if era_id not in _ERA_BY_ID:
+        raise HTTPException(status_code=404, detail=f"Era '{era_id}' not found")
+
+    def _task():
+        from app.vintage.validation import collect_era_samples, run_validation
+        collect_era_samples(era_id, target)
+        run_validation(limit=50)
+
+    threading.Thread(target=_task, daemon=True).start()
+    return {"status": "started", "era_id": era_id}
+
+
+@router.get("/etsy-listings")
+def etsy_listings(q: str, user: str = Depends(get_current_user)):
+    """Search Etsy for active vintage listings matching a keyword."""
+    from app.vintage.validation import search_etsy_listings
+    return {"query": q, "listings": search_etsy_listings(q, limit=6)}
 
 
 @router.get("/eras/{era_id}/market")
@@ -355,6 +385,13 @@ def era_market(era_id: str, user: str = Depends(get_current_user)):
         "demand_score": demand_score,
         "garment_prices": garment_prices,
     }
+
+
+@router.get("/etsy-listings")
+def etsy_listings(q: str, user: str = Depends(get_current_user)):
+    """Search Etsy for active vintage listings matching a keyword."""
+    from app.vintage.validation import search_etsy_listings
+    return {"query": q, "listings": search_etsy_listings(q, limit=6)}
 
 
 @router.get("/eras/{era_id}")

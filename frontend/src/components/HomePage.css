@@ -1,0 +1,579 @@
+.hp-root {
+  min-height: 100vh;
+  background: #0f0f0f;
+  color: #e0e0e0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hp-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4rem 1.5rem 3rem;
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.hp-hero {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.hp-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #f0f0f0;
+  margin: 0 0 0.75rem;
+  letter-spacing: -0.02em;
+}
+
+.hp-subtitle {
+  font-size: 1rem;
+  color: #555;
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* ── Cards ───────────────────────────────────────────────── */
+.hp-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .hp-cards { grid-template-columns: 1fr; }
+}
+
+.hp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: #141414;
+  border: 1px solid #242424;
+  border-radius: 14px;
+  padding: 1.75rem 1.5rem 1.25rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  color: inherit;
+  font: inherit;
+}
+
+.hp-card:hover {
+  border-color: #333;
+  background: #181818;
+}
+
+.hp-card:hover .hp-card-cta {
+  color: #f0a8b8;
+}
+
+.hp-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.hp-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #e8e8e8;
+  letter-spacing: -0.01em;
+}
+
+.hp-card-desc {
+  font-size: 0.84rem;
+  color: #666;
+  line-height: 1.65;
+  margin: 0;
+}
+
+.hp-card-desc strong {
+  color: #999;
+  font-weight: 600;
+}
+
+.hp-card-cta {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #3a3a3a;
+  transition: color 0.2s;
+  padding-top: 0.25rem;
+}
+
+/* ── Carousel shell ──────────────────────────────────────── */
+.hp-carousel {
+  border: 1px solid #1e1e1e;
+  border-radius: 10px;
+  background: #0d0d0d;
+  overflow: hidden;
+}
+
+.hp-carousel-inner {
+  display: flex;
+  align-items: stretch;
+}
+
+.hp-carousel-arrow {
+  flex-shrink: 0;
+  width: 28px;
+  background: none;
+  border: none;
+  color: #333;
+  font-size: 1.4rem;
+  cursor: pointer;
+  transition: color 0.15s;
+  padding: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hp-carousel-arrow:hover {
+  color: #f0a8b8;
+}
+
+.hp-carousel-window {
+  flex: 1;
+  position: relative;
+  height: 140px;
+}
+
+.hp-carousel-slide {
+  position: absolute;
+  inset: 0;
+  padding: 0.85rem 0.75rem;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.hp-carousel-slide.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.hp-carousel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.75rem 0.55rem;
+  border-top: 1px solid #181818;
+}
+
+.hp-carousel-dots {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.hp-carousel-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  border: none;
+  background: #2a2a2a;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s;
+}
+
+.hp-carousel-dot.active {
+  background: #f0a8b8;
+}
+
+.hp-carousel-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #333;
+}
+
+/* ── Slide: generic ──────────────────────────────────────── */
+.hp-slide {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  height: 100%;
+}
+
+.hp-mock-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #3a3a3a;
+}
+
+/* ── demand scoring ──────────────────────────────────────── */
+.hp-slide-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.hp-mock-kw {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #ccc;
+}
+
+.hp-mock-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.18rem 0.5rem;
+  border-radius: 20px;
+  border: 1px solid;
+}
+
+.hp-mock-badge--peak {
+  color: #ffa726;
+  background: rgba(255,167,38,0.08);
+  border-color: rgba(255,167,38,0.25);
+}
+
+.hp-mock-scores {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.hp-mock-score {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.hp-mock-score-lbl {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #3a3a3a;
+}
+
+.hp-mock-score-val {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* ── platforms ───────────────────────────────────────────── */
+.hp-mock-platforms {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.hp-mock-platform {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid #1e1e1e;
+  border-radius: 6px;
+  padding: 0.3rem 0.55rem;
+}
+
+.hp-mock-platform-name {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #3a3a3a;
+}
+
+.hp-mock-platform-price {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #bbb;
+}
+
+/* ── lifecycle curve ─────────────────────────────────────── */
+.hp-mock-curve-svg {
+  width: 100%;
+  height: 78px;
+  overflow: visible;
+}
+
+/* ── line chart ──────────────────────────────────────────── */
+.hp-mock-linechart-svg {
+  width: 100%;
+  height: 58px;
+}
+
+.hp-mock-chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.6rem;
+  color: #3a3a3a;
+}
+
+.hp-mock-legend-line {
+  display: inline-block;
+  width: 18px;
+  height: 1.5px;
+  background: #f0a8b8;
+  margin-right: 0.25rem;
+  vertical-align: middle;
+}
+
+.hp-mock-legend-line--dash {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(240,168,184,0.4) 0,
+    rgba(240,168,184,0.4) 4px,
+    transparent 4px,
+    transparent 7px
+  );
+}
+
+/* ── sourcing rows ───────────────────────────────────────── */
+.hp-mock-sourcing {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.hp-mock-source-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.28rem 0;
+  border-bottom: 1px solid #181818;
+}
+
+.hp-mock-source-row:last-child { border-bottom: none; }
+
+.hp-mock-source-item {
+  font-size: 0.76rem;
+  color: #888;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hp-mock-source-price {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #f0a8b8;
+  flex-shrink: 0;
+}
+
+/* ── era classification ──────────────────────────────────── */
+.hp-mock-era-label {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #ccc;
+}
+
+.hp-mock-conf-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.hp-mock-conf-pct {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #f0a8b8;
+  flex-shrink: 0;
+}
+
+.hp-mock-conf-track {
+  flex: 1;
+  height: 5px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.hp-mock-conf-fill {
+  height: 100%;
+  background: #f0a8b8;
+  border-radius: 3px;
+}
+
+.hp-mock-reasoning {
+  font-size: 0.73rem;
+  color: #555;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── chips ───────────────────────────────────────────────── */
+.hp-mock-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.hp-mock-chip {
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 0.18rem 0.5rem;
+  border-radius: 20px;
+  border: 1px solid rgba(240,168,184,0.25);
+  background: rgba(240,168,184,0.06);
+  color: rgba(240,168,184,0.8);
+}
+
+/* ── price stats ─────────────────────────────────────────── */
+.hp-mock-price-stats {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hp-mock-pstat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid #1e1e1e;
+  border-radius: 6px;
+  padding: 0.35rem 0.25rem;
+}
+
+.hp-mock-pstat span {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #3a3a3a;
+}
+
+.hp-mock-pstat strong {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #bbb;
+}
+
+.hp-mock-pstat--avg strong {
+  color: #f0a8b8;
+}
+
+/* ── moodboard ───────────────────────────────────────────── */
+.hp-mock-moodboard {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  height: 80px;
+}
+
+.hp-mock-moodboard-cell {
+  border-radius: 3px;
+}
+
+/* ── Image carousel ──────────────────────────────────────── */
+.hp-img-car {
+  border: 1px solid #1e1e1e;
+  border-radius: 10px;
+  background: #0d0d0d;
+  overflow: hidden;
+}
+
+.hp-img-car--loading {
+  aspect-ratio: 3 / 4;
+}
+
+.hp-img-car-inner {
+  display: flex;
+  align-items: stretch;
+}
+
+.hp-img-car-arrow {
+  flex-shrink: 0;
+  width: 28px;
+  background: none;
+  border: none;
+  color: #333;
+  font-size: 1.4rem;
+  cursor: pointer;
+  transition: color 0.15s;
+  padding: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hp-img-car-arrow:hover {
+  color: #f0a8b8;
+}
+
+.hp-img-car-window {
+  flex: 1;
+  min-width: 0;
+  aspect-ratio: 3 / 4;
+}
+
+.hp-img-car-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
+
+.hp-img-car-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hp-img-car-placeholder-text {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2a2a2a;
+}
+
+.hp-img-car-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.75rem 0.5rem;
+  border-top: 1px solid #181818;
+}
+
+.hp-img-car-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #333;
+}
+
+.hp-img-car-dots {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.hp-img-car-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  border: none;
+  background: #2a2a2a;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s;
+}
+
+.hp-img-car-dot.active {
+  background: #f0a8b8;
+}

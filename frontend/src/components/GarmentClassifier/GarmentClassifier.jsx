@@ -89,6 +89,15 @@ const makeThumbnail = (file) =>
     img.src = url
   })
 
+function decadeFromEraId(eraId) {
+  if (!eraId) return null
+  // "early-1990s", "late-1970s", "1920s", "1700-1749" → extract last 4-digit year group
+  const m = eraId.match(/(\d{4})/)
+  if (!m) return null
+  const year = parseInt(m[1])
+  return `${Math.floor(year / 10) * 10}s`
+}
+
 function relativeTime(ts) {
   const diff = Math.floor((Date.now() - ts) / 1000)
   if (diff < 60) return 'just now'
@@ -107,7 +116,7 @@ function saveHistory(entries) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(entries))
 }
 
-export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVintage, onExploreEra }) {
+export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwitchToVintage, onExploreEra }) {
   const { logout } = useAuth()
   const stellaRef = useRef(null)
 
@@ -151,11 +160,19 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
   const [resultThumbnail, setResultThumbnail] = useState(null)
   const [marketData, setMarketData] = useState(null)
   const [eraDetail, setEraDetail] = useState(null)
+  const [etsyListings, setEtsyListings] = useState(null)
+  const [etsyQuery, setEtsyQuery] = useState(null)
   const [error, setError] = useState(null)
+  const [resultSource, setResultSource] = useState(null) // 'classify' | 'history'
+  const resultsPanelRef = useRef(null)
 
   // Keyword tracking
   const [trackedKeywords, setTrackedKeywords] = useState(new Set())
   const [trackingSet, setTrackingSet] = useState(new Set())
+
+  // Toast
+  const [toast, setToast] = useState(null)
+  const toastTimerRef = useRef(null)
 
   // History
   const [history, setHistory] = useState([])
@@ -223,12 +240,19 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
     return anyChip || notes.trim() || images.length > 0
   }
 
+  const showToast = (msg) => {
+    setToast(msg)
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000)
+  }
+
   const handleTrackKeyword = async (kw) => {
     if (trackedKeywords.has(kw) || trackingSet.has(kw)) return
     setTrackingSet(prev => new Set([...prev, kw]))
     try {
       await api.post(`/trends/keywords/${encodeURIComponent(kw)}/track`)
       setTrackedKeywords(prev => new Set([...prev, kw]))
+      showToast(`Now tracking "${kw}" on Trend Forecast`)
     } catch {}
     setTrackingSet(prev => { const s = new Set(prev); s.delete(kw); return s })
   }
@@ -238,9 +262,13 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
     setResultThumbnail(null)
     setMarketData(null)
     setEraDetail(null)
+    setEtsyListings(null)
+    setEtsyQuery(null)
     setError(null)
+    setResultSource(null)
     setNotes('')
     setSelected(Object.fromEntries(Object.keys(DESCRIPTOR_LABELS).map(k => [k, []])))
+    setSearch(Object.fromEntries(Object.keys(DESCRIPTOR_LABELS).map(k => [k, ''])))
     setImages(prev => { prev.forEach(img => URL.revokeObjectURL(img.preview)); return [] })
   }
 
@@ -278,21 +306,56 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
         setResultThumbnail(thumbnail)
       }
 
-      // Fetch era detail + market data in parallel (await so history entry has full data)
+      // Fetch era detail, market data, and Etsy listings in parallel
       let eraDetailData = null
       let marketDataData = null
+      let etsyData = null
       const primaryEraId = classifyResult.primary_era?.id
+      const topKeyword = classifyResult.related_keywords?.[0]
+      const decade = decadeFromEraId(primaryEraId)
+      const etsyQuery = (() => {
+        if (!topKeyword) return null
+        const prefix = [decade, 'vintage'].filter(Boolean)
+        const kwWords = topKeyword.split(/\s+/)
+        const seen = new Set(prefix.map(w => w.toLowerCase()))
+        const deduped = kwWords.filter(w => {
+          const lw = w.toLowerCase()
+          if (seen.has(lw)) return false
+          seen.add(lw)
+          return true
+        })
+        return [...prefix, ...deduped].join(' ')
+      })()
+      const fetches = []
       if (primaryEraId) {
-        try {
-          const [detailRes, marketRes] = await Promise.all([
-            api.get(`/vintage/eras/${encodeURIComponent(primaryEraId)}`),
-            api.get(`/vintage/eras/${encodeURIComponent(primaryEraId)}/market`),
-          ])
-          eraDetailData = detailRes.data
-          marketDataData = marketRes.data
+        fetches.push(
+          api.get(`/vintage/eras/${encodeURIComponent(primaryEraId)}`),
+          api.get(`/vintage/eras/${encodeURIComponent(primaryEraId)}/market`),
+        )
+      }
+      if (etsyQuery) {
+        fetches.push(api.get(`/vintage/etsy-listings?q=${encodeURIComponent(etsyQuery)}`))
+      }
+      try {
+        const results = await Promise.all(fetches)
+        let i = 0
+        if (primaryEraId) {
+          eraDetailData = results[i++].data
+          marketDataData = results[i++].data
           setEraDetail(eraDetailData)
           setMarketData(marketDataData)
-        } catch {}
+        }
+        if (etsyQuery) {
+          etsyData = results[i].data.listings || []
+          setEtsyListings(etsyData)
+          setEtsyQuery(etsyQuery)
+        }
+      } catch {}
+
+      // Background: collect Etsy validation samples for this era (fire and forget)
+      if (primaryEraId) {
+        api.post(`/vintage/validation/collect-era?era_id=${encodeURIComponent(primaryEraId)}&target=5`)
+          .catch(() => {})
       }
 
       // Build descriptor summary: first 6 selected chips across all categories
@@ -307,10 +370,14 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
         result: classifyResult,
         eraDetail: eraDetailData,
         marketData: marketDataData,
+        etsyListings: etsyData,
+        etsyQuery: etsyQuery || null,
+        // era_accuracy lives inside classifyResult already
       }
       const updated = [entry, ...history].slice(0, MAX_HISTORY)
       setHistory(updated)
       saveHistory(updated)
+      setResultSource('classify')
     } catch (err) {
       setError(err.response?.data?.detail || 'Classification failed. Please try again.')
     } finally {
@@ -329,13 +396,21 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
     saveHistory([])
   }
 
+  // Scroll to top whenever loading starts or a result appears
+  useEffect(() => {
+    if (result || loading) {
+      window.scrollTo({ top: 0, behavior: 'instant' })
+      resultsPanelRef.current?.scrollTo({ top: 0, behavior: 'instant' })
+    }
+  }, [result, loading])
+
   const confidencePct = (val) => Math.round((val || 0) * 100)
 
   return (
     <div className="gc-root">
       <header className="vintage-header">
         <div className="vintage-header-left">
-          <h1>Fashion Resale Tool</h1>
+          <h1 className="hp-nav-title" onClick={onGoHome}>Fashion Resale Tool</h1>
           <div className="nav-toggle">
             <button className="nav-toggle-btn" onClick={onSwitchToDashboard}>Trend Forecast</button>
             <button className="nav-toggle-btn active">Vintage</button>
@@ -389,6 +464,16 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
                       placeholder={`Search ${DESCRIPTOR_LABELS[cat].toLowerCase()}…`}
                       value={search[cat]}
                       onChange={e => setSearch(prev => ({ ...prev, [cat]: e.target.value }))}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          const term = search[cat].trim()
+                          if (term && !(options[cat] || []).some(v => v.toLowerCase() === term.toLowerCase())) {
+                            setOptions(prev => ({ ...prev, [cat]: [...new Set([...(prev[cat] || []), term])] }))
+                            setSelected(prev => ({ ...prev, [cat]: prev[cat].includes(term) ? prev[cat] : [...prev[cat], term] }))
+                            setSearch(prev => ({ ...prev, [cat]: '' }))
+                          }
+                        }
+                      }}
                     />
                     <div className="gc-chips">
                       {filtered.map(val => (
@@ -401,7 +486,21 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
                           {val}
                         </button>
                       ))}
-                      {filtered.length === 0 && (
+                      {search[cat].trim() && !(options[cat] || []).some(v => v.toLowerCase() === search[cat].trim().toLowerCase()) && (
+                        <button
+                          className="gc-chip gc-chip-add-new"
+                          onClick={() => {
+                            const term = search[cat].trim()
+                            setOptions(prev => ({ ...prev, [cat]: [...new Set([...(prev[cat] || []), term])] }))
+                            setSelected(prev => ({ ...prev, [cat]: prev[cat].includes(term) ? prev[cat] : [...prev[cat], term] }))
+                            setSearch(prev => ({ ...prev, [cat]: '' }))
+                          }}
+                          type="button"
+                        >
+                          + Add "{search[cat].trim()}"
+                        </button>
+                      )}
+                      {filtered.length === 0 && !search[cat].trim() && (
                         <span className="gc-no-results">No matches</span>
                       )}
                     </div>
@@ -503,7 +602,7 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
         </aside>
 
         {/* ── Right: Results + History ── */}
-        <main className="gc-results-panel">
+        <main className="gc-results-panel" ref={resultsPanelRef}>
           {!result && !loading && history.length === 0 && (
             <div className="gc-results-empty">
               <span className="gc-results-empty-icon">🧵</span>
@@ -512,7 +611,7 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
           )}
 
           {loading && (
-            <div className="gc-results-empty">
+            <div className="gc-results-loading">
               <div className="gc-spinner-lg" />
               <p>Analyzing garment…</p>
             </div>
@@ -521,7 +620,14 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
           {result && (
             <div className="gc-results">
               <div className="gc-results-topbar">
-                <button className="gc-clear-btn" onClick={handleClear} type="button">Clear</button>
+                {resultSource === 'history' ? (
+                  <button className="gc-clear-btn" onClick={handleClear} type="button">← History</button>
+                ) : (
+                  <div className="gc-clear-tooltip-wrap">
+                    <button className="gc-clear-btn" onClick={handleClear} type="button">Clear</button>
+                    <span className="gc-clear-tooltip">Result will be saved to History</span>
+                  </div>
+                )}
                 {resultThumbnail && (
                   <img className="gc-result-thumb" src={resultThumbnail} alt="Uploaded garment" />
                 )}
@@ -534,6 +640,12 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
                     <div className="gc-era-label">{result.primary_era?.label}</div>
                     <div className="gc-confidence-label">
                       {confidencePct(result.primary_era?.confidence)}% confidence
+                      {result.era_accuracy?.decade_accuracy != null && (
+                        <span className="gc-verified-badge">
+                          · {Math.round(result.era_accuracy.decade_accuracy * 100)}% verified
+                          <span className="gc-verified-sub"> ({result.era_accuracy.samples} Etsy samples)</span>
+                        </span>
+                      )}
                     </div>
                   </div>
                   <button
@@ -647,11 +759,65 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
               {eraDetail?.aesthetics?.length > 0 && (
                 <div className="gc-result-card">
                   <div className="gc-section-label">Buyers Are Searching For</div>
+                  <p className="gc-kw-hint">Click to track on Trend Forecast.</p>
                   <div className="gc-chips gc-feature-chips">
-                    {eraDetail.aesthetics.map((a, i) => (
-                      <span key={i} className="gc-chip gc-kw-chip" onClick={() => navigator.clipboard?.writeText(a)} title="Click to copy">{a}</span>
-                    ))}
+                    {eraDetail.aesthetics.map((a, i) => {
+                      const isTracked = trackedKeywords.has(a)
+                      const isTracking = trackingSet.has(a)
+                      return (
+                        <button
+                          key={i}
+                          className={`gc-track-chip${isTracked ? ' gc-track-chip--tracked' : ''}${isTracking ? ' gc-track-chip--loading' : ''}`}
+                          onClick={() => handleTrackKeyword(a)}
+                          disabled={isTracked || isTracking}
+                          type="button"
+                          title={isTracked ? 'Already tracking' : 'Click to track'}
+                        >
+                          {a}
+                          <span className="gc-track-chip-icon">
+                            {isTracking ? '…' : isTracked ? '✓' : '+'}
+                          </span>
+                        </button>
+                      )
+                    })}
                   </div>
+                </div>
+              )}
+
+              {/* ── Similar on Etsy ── */}
+              {etsyQuery && (
+                <div className="gc-result-card">
+                  <div className="gc-etsy-header">
+                    <div className="gc-section-label">Similar on Etsy</div>
+                    <a
+                      className="gc-etsy-search-link"
+                      href={`https://www.etsy.com/search?q=${encodeURIComponent(etsyQuery)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Search: "{etsyQuery}" →
+                    </a>
+                  </div>
+                  {etsyListings?.length > 0 ? (
+                    <div className="gc-etsy-list">
+                      {etsyListings.map((item, i) => (
+                        <a
+                          key={i}
+                          className="gc-etsy-item"
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <span className="gc-etsy-title">{item.title}</span>
+                          <span className="gc-etsy-price">
+                            {item.price != null ? `$${item.price.toFixed(2)}` : '—'}
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="gc-etsy-fallback">Click the search link above to browse live listings on Etsy.</p>
+                  )}
                 </div>
               )}
 
@@ -693,7 +859,22 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
               </div>
               <div className="gc-history-list">
                 {history.map(entry => (
-                  <div className="gc-history-entry" key={entry.id}>
+                  <div
+                    className="gc-history-entry"
+                    key={entry.id}
+                    onClick={() => {
+                      setResult(entry.result)
+                      setResultThumbnail(entry.thumbnail || null)
+                      setEraDetail(entry.eraDetail || null)
+                      setMarketData(entry.marketData || null)
+                      setEtsyListings(entry.etsyListings || null)
+                      setEtsyQuery(entry.etsyQuery || null)
+                      setResultSource('history')
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => e.key === 'Enter' && e.currentTarget.click()}
+                  >
                     {entry.thumbnail && (
                       <img className="gc-history-thumb" src={entry.thumbnail} alt="" />
                     )}
@@ -709,20 +890,8 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
                       <div className="gc-history-actions">
                         <span className="gc-history-time">{relativeTime(entry.timestamp)}</span>
                         <button
-                          className="gc-history-load"
-                          onClick={() => {
-                            setResult(entry.result)
-                            setResultThumbnail(entry.thumbnail || null)
-                            setEraDetail(entry.eraDetail || null)
-                            setMarketData(entry.marketData || null)
-                          }}
-                          type="button"
-                        >
-                          Load
-                        </button>
-                        <button
                           className="gc-history-delete"
-                          onClick={() => deleteHistoryEntry(entry.id)}
+                          onClick={e => { e.stopPropagation(); deleteHistoryEntry(entry.id) }}
                           type="button"
                           aria-label="Remove"
                         >
@@ -753,6 +922,13 @@ export default function GarmentClassifier({ onSwitchToDashboard, onSwitchToVinta
         ref={stellaRef}
         context={{ view: 'classify', classifyResult: result || null }}
       />
+
+      {toast && (
+        <div className="gc-toast">
+          <span className="gc-toast-icon">✓</span>
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

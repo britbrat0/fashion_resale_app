@@ -31,6 +31,10 @@ export default function TrendDetail({ keyword, period, inline = false, onSearch 
   const [forecastLoading, setForecastLoading] = useState(false)
   const [forecastError, setForecastError] = useState('')
   const [seasonalData, setSeasonalData] = useState([])
+  const [showSourcing, setShowSourcing] = useState(false)
+  const [sourcingData, setSourcingData] = useState(null)
+  const [sourcingLoading, setSourcingLoading] = useState(false)
+  const [sourcingError, setSourcingError] = useState('')
 
   useEffect(() => {
     if (!keyword) return
@@ -49,6 +53,17 @@ export default function TrendDetail({ keyword, period, inline = false, onSearch 
       .then((res) => setSeasonalData(res.data.seasonal || []))
       .catch(() => setSeasonalData([]))
   }, [keyword])
+
+  useEffect(() => {
+    if (!showSourcing || sourcingData || sourcingLoading) return
+    setSourcingLoading(true)
+    setSourcingError('')
+    api
+      .get(`/trends/keywords/${encodeURIComponent(keyword)}/sourcing`)
+      .then(res => setSourcingData(res.data.garments || []))
+      .catch(() => setSourcingError('Failed to load sourcing suggestions.'))
+      .finally(() => setSourcingLoading(false))
+  }, [showSourcing, keyword])
 
   useEffect(() => {
     if (!showForecast) return
@@ -176,6 +191,45 @@ export default function TrendDetail({ keyword, period, inline = false, onSearch 
       </div>
 
       <RegionHeatmap usRegions={details.regions_us} />
+
+      {/* ── Top Garments to Source ── */}
+      <div className="sourcing-panel">
+        <button
+          className={`sourcing-toggle${showSourcing ? ' sourcing-toggle--active' : ''}`}
+          onClick={() => setShowSourcing(v => !v)}
+          type="button"
+        >
+          {showSourcing ? '✕ Hide Garments to Source' : '◆ Top Garments to Source'}
+        </button>
+
+        {showSourcing && (
+          <div className="sourcing-body">
+            {sourcingLoading && (
+              <p className="sourcing-status">Generating recommendations…</p>
+            )}
+            {sourcingError && (
+              <p className="sourcing-error">{sourcingError}</p>
+            )}
+            {sourcingData && sourcingData.length > 0 && (
+              <div className="sourcing-list">
+                {sourcingData.map((g, i) => (
+                  <div className="sourcing-item" key={i}>
+                    <div className="sourcing-item-header">
+                      <span className="sourcing-item-name">{g.item}</span>
+                      <span className="sourcing-item-price">{g.price_range}</span>
+                    </div>
+                    <p className="sourcing-item-why">{g.why}</p>
+                    <p className="sourcing-item-tip">
+                      <span className="sourcing-tip-label">How to find: </span>
+                      {g.sourcing_tip}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

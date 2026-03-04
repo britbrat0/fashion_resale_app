@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import LoginForm from './components/LoginForm'
+import HomePage from './components/HomePage'
 import Dashboard from './components/Dashboard'
 import VintageExplorer from './components/VintageExplorer/VintageExplorer'
 import GarmentClassifier from './components/GarmentClassifier/GarmentClassifier'
@@ -17,13 +18,25 @@ function PublicRoute({ children }) {
 }
 
 function AppShell() {
-  const [mode, setMode] = useState('dashboard')
+  const [mode, setMode] = useState('home')
   const [initialEraId, setInitialEraId] = useState(null)
+
+  const goHome = () => setMode('home')
+
+  if (mode === 'home') {
+    return (
+      <HomePage
+        onGoToDashboard={() => setMode('dashboard')}
+        onGoToVintage={() => { setInitialEraId(null); setMode('classify') }}
+      />
+    )
+  }
 
   if (mode === 'vintage') {
     return (
       <VintageExplorer
         initialEraId={initialEraId}
+        onGoHome={goHome}
         onSwitchToDashboard={() => setMode('dashboard')}
         onSwitchToClassify={() => setMode('classify')}
       />
@@ -33,6 +46,7 @@ function AppShell() {
   if (mode === 'classify') {
     return (
       <GarmentClassifier
+        onGoHome={goHome}
         onSwitchToDashboard={() => setMode('dashboard')}
         onSwitchToVintage={() => { setInitialEraId(null); setMode('vintage') }}
         onExploreEra={(id) => { setInitialEraId(id); setMode('vintage') }}
@@ -40,7 +54,7 @@ function AppShell() {
     )
   }
 
-  return <Dashboard onSwitchToVintage={() => { setInitialEraId(null); setMode('classify') }} />
+  return <Dashboard onGoHome={goHome} onSwitchToVintage={() => { setInitialEraId(null); setMode('classify') }} />
 }
 
 export default function App() {

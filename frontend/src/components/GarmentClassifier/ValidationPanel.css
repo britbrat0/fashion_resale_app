@@ -1,0 +1,299 @@
+.vp-root {
+  border-top: 1px solid #242424;
+  margin-top: 2rem;
+}
+
+.vp-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 1rem 0;
+  cursor: pointer;
+  color: #555;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: color 0.15s;
+}
+
+.vp-toggle:hover {
+  color: #888;
+}
+
+.vp-chevron {
+  font-size: 1rem;
+  display: inline-block;
+  transition: transform 0.2s;
+  transform: rotate(0deg);
+}
+
+.vp-chevron.open {
+  transform: rotate(90deg);
+}
+
+.vp-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-bottom: 2rem;
+}
+
+.vp-desc {
+  font-size: 0.8rem;
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── Actions ─────────────────────────────────────────── */
+.vp-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.vp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  border: 1px solid #2e2e2e;
+  background: rgba(255, 255, 255, 0.05);
+  color: #aaa;
+}
+
+.vp-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+}
+
+.vp-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.vp-btn--run {
+  background: rgba(240, 168, 184, 0.1);
+  border-color: rgba(240, 168, 184, 0.3);
+  color: #f0a8b8;
+}
+
+.vp-btn--run:hover:not(:disabled) {
+  background: rgba(240, 168, 184, 0.18);
+  color: #f0a8b8;
+}
+
+.vp-btn--refresh {
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+}
+
+.vp-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #f0a8b8;
+  border-radius: 50%;
+  animation: vp-spin 0.7s linear infinite;
+}
+
+@keyframes vp-spin {
+  to { transform: rotate(360deg); }
+}
+
+.vp-error {
+  font-size: 0.8rem;
+  color: #e88;
+  margin: 0;
+}
+
+.vp-run-result {
+  font-size: 0.8rem;
+  color: #888;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #252525;
+  border-radius: 6px;
+}
+
+.vp-loading {
+  font-size: 0.8rem;
+  color: #555;
+}
+
+/* ── Overall stats ───────────────────────────────────── */
+.vp-overall {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: #1a1a1a;
+  border: 1px solid #252525;
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem;
+}
+
+.vp-stat-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.vp-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #282828;
+  border-radius: 7px;
+  padding: 0.5rem 0.25rem;
+}
+
+.vp-stat-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #555;
+}
+
+.vp-stat-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #e0e0e0;
+}
+
+.vp-accuracy-row {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.vp-accuracy-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.vp-accuracy-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #555;
+}
+
+.vp-accuracy-sub {
+  font-size: 0.68rem;
+  color: #444;
+}
+
+/* ── Accuracy bar ────────────────────────────────────── */
+.vp-acc-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.vp-acc-bar-track {
+  flex: 1;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.vp-acc-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.vp-acc-pct {
+  font-size: 0.78rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 36px;
+  text-align: right;
+}
+
+.vp-na {
+  color: #444;
+  font-size: 0.85rem;
+}
+
+/* ── Per-era table ───────────────────────────────────── */
+.vp-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #242424;
+  border-radius: 8px;
+}
+
+.vp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.vp-table thead tr {
+  background: #161616;
+  border-bottom: 1px solid #252525;
+}
+
+.vp-table th {
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #555;
+  white-space: nowrap;
+}
+
+.vp-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #1e1e1e;
+  color: #bbb;
+  vertical-align: middle;
+}
+
+.vp-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.vp-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.vp-era-name {
+  color: #d0d0d0;
+  font-weight: 500;
+  min-width: 180px;
+}
+
+.vp-decade {
+  color: #888;
+  font-size: 0.72rem;
+}
+
+.vp-empty {
+  font-size: 0.82rem;
+  color: #555;
+  margin: 0;
+}
+
+.vp-empty strong {
+  color: #888;
+}

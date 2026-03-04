@@ -22,6 +22,15 @@
   gap: 1.5rem;
 }
 
+.hp-nav-title {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.hp-nav-title:hover {
+  opacity: 0.7;
+}
+
 .vintage-header h1 {
   font-size: 1.25rem;
   font-weight: 600;
@@ -291,6 +300,37 @@
 
 .era-chip.color-chip {
   padding-left: 0.5rem;
+}
+
+/* Trackable chips (era detail pages) */
+.era-chip--trackable {
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.era-chip--trackable:hover {
+  background: rgba(240, 168, 184, 0.1);
+  border-color: rgba(240, 168, 184, 0.4);
+  color: #f0a8b8;
+}
+
+.era-chip--tracked {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.06);
+  color: #555;
+  cursor: default;
+}
+
+.era-chip-track-icon {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #f0a8b8;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+.era-chip--tracked .era-chip-track-icon {
+  color: #3a3a3a;
 }
 
 .color-swatch {
@@ -654,11 +694,25 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid #252525;
   border-radius: 7px;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: default;
 }
 
-.era-garment-item:hover {
-  border-color: #333;
+.era-garment-item--clickable {
+  cursor: pointer;
+}
+
+.era-garment-item--clickable:hover {
+  border-color: rgba(240, 168, 184, 0.35);
+  background: rgba(240, 168, 184, 0.05);
+}
+
+.era-garment-item--tracked {
+  opacity: 0.55;
 }
 
 .era-garment-rank {
@@ -686,4 +740,34 @@
 .era-garment-price--na {
   color: #444;
   font-weight: 400;
+}
+
+.era-garment-track {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid #333;
+  background: none;
+  color: #f0a8b8;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.era-garment-track:hover {
+  background: rgba(240, 168, 184, 0.15);
+  border-color: rgba(240, 168, 184, 0.5);
+}
+
+.era-garment-track--tracked {
+  border-color: #2a2a2a;
+  color: #3a3a3a;
+  cursor: default;
 }

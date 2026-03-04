@@ -506,3 +506,79 @@ def remove_keyword(keyword: str, user: str = Depends(get_current_user)):
     conn.commit()
     conn.close()
     return {"message": f"Keyword '{keyword}' removed"}
+
+
+@router.get("/keywords/{keyword}/sourcing")
+def keyword_sourcing(keyword: str, user: str = Depends(get_current_user)):
+    """Return AI-generated 'Top Garments to Source' suggestions for a tracked keyword."""
+    import json
+    from app.config import settings
+    from anthropic import Anthropic
+
+    # Pull latest trend context from DB
+    conn = get_connection()
+    score_row = conn.execute(
+        "SELECT lifecycle_stage, composite_score, volume_growth, price_growth "
+        "FROM trend_scores WHERE keyword = ? ORDER BY computed_at DESC LIMIT 1",
+        (_normalize(keyword),),
+    ).fetchone()
+    price_row = conn.execute(
+        "SELECT AVG(value) AS avg, MIN(value) AS min, MAX(value) AS max "
+        "FROM trend_data WHERE keyword = ? AND metric = 'avg_price' AND value > 0",
+        (_normalize(keyword),),
+    ).fetchone()
+    conn.close()
+
+    # Build context string
+    context_parts = [f"Resale keyword: \"{keyword}\""]
+    if score_row:
+        if score_row["lifecycle_stage"]:
+            context_parts.append(f"Lifecycle stage: {score_row['lifecycle_stage']}")
+        if score_row["composite_score"] is not None:
+            context_parts.append(f"Demand score: {round(score_row['composite_score'], 1)}")
+        if score_row["volume_growth"] is not None:
+            context_parts.append(f"Volume growth: {round(score_row['volume_growth'], 1)}%")
+        if score_row["price_growth"] is not None:
+            context_parts.append(f"Price growth: {round(score_row['price_growth'], 1)}%")
+    if price_row and price_row["avg"]:
+        context_parts.append(
+            f"Price range: ${round(price_row['min'], 0):.0f}–${round(price_row['max'], 0):.0f} "
+            f"(avg ${round(price_row['avg'], 0):.0f})"
+        )
+    context = "\n".join(context_parts)
+
+    prompt = f"""{context}
+
+You are an expert vintage and secondhand fashion reseller. Based on the keyword and trend data above, suggest the top 5 specific garments a reseller should source RIGHT NOW.
+
+For each garment include:
+- item: specific name (brand + garment type + era if relevant, e.g. "Levi's 501 jeans (1980s–1990s)")
+- why: one sentence on why it sells well for this keyword right now
+- price_range: typical resale price range as a string (e.g. "$35–$90")
+- sourcing_tip: one concrete tip on where/how to find it (thrift stores, estate sales, specific brands to look for, condition details)
+
+Respond ONLY with valid JSON:
+{{
+  "garments": [
+    {{"item": "...", "why": "...", "price_range": "...", "sourcing_tip": "..."}},
+    ...
+  ]
+}}"""
+
+    try:
+        client = Anthropic(api_key=settings.anthropic_api_key)
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        data = json.loads(raw.strip())
+        return {"keyword": keyword, "garments": data.get("garments", [])}
+    except Exception as e:
+        logger.error(f"Sourcing suggestions failed for '{keyword}': {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate suggestions: {e}")
