@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import api from '../services/api'
 import LifecycleBadge from './LifecycleBadge'
 import InfoTooltip from './Charts/InfoTooltip'
@@ -35,6 +35,13 @@ function ForecastColumns({ forecast }) {
 
 export default function TrendCard({ trend, isExpanded, onClick, onRemove, onCompare, inCompare, forecast }) {
   const [thumbs, setThumbs] = useState([])
+  const cardRef = useRef(null)
+
+  useEffect(() => {
+    if (isExpanded && cardRef.current) {
+      cardRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }
+  }, [isExpanded])
 
   useEffect(() => {
     api
@@ -58,6 +65,7 @@ export default function TrendCard({ trend, isExpanded, onClick, onRemove, onComp
 
   return (
     <div
+      ref={cardRef}
       className={`trend-card ${isExpanded ? 'trend-card--expanded' : ''}`}
       onClick={onClick}
     >

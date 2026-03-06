@@ -88,7 +88,7 @@ def list_eras(user: str = Depends(get_current_user)):
 
 
 @router.get("/eras/{era_id}/images")
-def era_images(era_id: str, user: str = Depends(get_current_user)):
+def era_images(era_id: str):
     """Return up to 6 Pinterest images for this era.
 
     On first visit: blocks while Pinterest scrapes (45 s timeout).

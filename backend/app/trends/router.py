@@ -326,7 +326,7 @@ def _pinterest_images_stale(keyword: str) -> bool:
 
 
 @router.get("/{keyword}/images")
-def trend_images(keyword: str, user: str = Depends(get_current_user)):
+def trend_images(keyword: str):
     """Return up to 4 product images. Primary: Pinterest. Fallback: eBay.
     Returns cached images immediately; triggers a background refresh if cache is stale."""
     keyword = _normalize(keyword)

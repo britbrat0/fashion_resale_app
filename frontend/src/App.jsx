@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
-import LoginForm from './components/LoginForm'
+import LandingPage from './components/LandingPage'
 import HomePage from './components/HomePage'
 import Dashboard from './components/Dashboard'
 import VintageExplorer from './components/VintageExplorer/VintageExplorer'
@@ -65,7 +65,7 @@ export default function App() {
           path="/"
           element={
             <PublicRoute>
-              <LoginForm />
+              <LandingPage />
             </PublicRoute>
           }
         />

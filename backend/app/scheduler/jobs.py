@@ -103,10 +103,9 @@ def catchup_google_trends():
 
 
 def scrape_and_score():
-    """Combined job: scrape all sources, then compute scores, then catch up any missing data."""
+    """Combined job: scrape all sources then compute scores."""
     scrape_all_sources()
     compute_all_scores()
-    catchup_google_trends()
 
 
 def discover_keywords():
@@ -157,9 +156,16 @@ def scrape_single_keyword(keyword: str):
 
 def start_scheduler():
     """Initialize and start the background scheduler."""
+    now = datetime.now(timezone.utc)
+
     # Scrape + score every 6 hours — run once immediately on startup so restarts don't leave data stale
     scheduler.add_job(scrape_and_score, "interval", hours=6, id="scrape_and_score", replace_existing=True,
-                      next_run_time=datetime.now(timezone.utc))
+                      next_run_time=now)
+
+    # Catch-up Google Trends 2 hours after startup, then every 6 hours — offset from main scrape so
+    # Google Trends rate limits have cleared before retrying any failed keywords
+    scheduler.add_job(catchup_google_trends, "interval", hours=6, id="catchup_google_trends", replace_existing=True,
+                      next_run_time=now + timedelta(hours=2))
 
     # Auto-discover new keywords every 24 hours
     scheduler.add_job(discover_keywords, "interval", hours=24, id="discover_keywords", replace_existing=True)
@@ -171,7 +177,7 @@ def start_scheduler():
     scheduler.add_job(refine_keyword_scales, "interval", days=7, id="refine_keyword_scales", replace_existing=True)
 
     scheduler.start()
-    logger.info("Scheduler started: scrape_and_score every 6h, discover_keywords every 24h, expire_stale_keywords every 24h, refine_keyword_scales every 7d")
+    logger.info("Scheduler started: scrape_and_score every 6h, catchup_google_trends every 6h (offset +2h), discover_keywords every 24h, expire_stale_keywords every 24h, refine_keyword_scales every 7d")
 
 
 def stop_scheduler():

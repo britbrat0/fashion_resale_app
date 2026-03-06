@@ -31,7 +31,6 @@ export default function TrendDetail({ keyword, period, inline = false, onSearch 
   const [forecastLoading, setForecastLoading] = useState(false)
   const [forecastError, setForecastError] = useState('')
   const [seasonalData, setSeasonalData] = useState([])
-  const [showSourcing, setShowSourcing] = useState(false)
   const [sourcingData, setSourcingData] = useState(null)
   const [sourcingLoading, setSourcingLoading] = useState(false)
   const [sourcingError, setSourcingError] = useState('')
@@ -55,7 +54,8 @@ export default function TrendDetail({ keyword, period, inline = false, onSearch 
   }, [keyword])
 
   useEffect(() => {
-    if (!showSourcing || sourcingData || sourcingLoading) return
+    if (!keyword) return
+    setSourcingData(null)
     setSourcingLoading(true)
     setSourcingError('')
     api
@@ -63,7 +63,7 @@ export default function TrendDetail({ keyword, period, inline = false, onSearch 
       .then(res => setSourcingData(res.data.garments || []))
       .catch(() => setSourcingError('Failed to load sourcing suggestions.'))
       .finally(() => setSourcingLoading(false))
-  }, [showSourcing, keyword])
+  }, [keyword])
 
   useEffect(() => {
     if (!showForecast) return
@@ -194,23 +194,16 @@ export default function TrendDetail({ keyword, period, inline = false, onSearch 
 
       {/* ── Top Garments to Source ── */}
       <div className="sourcing-panel">
-        <button
-          className={`sourcing-toggle${showSourcing ? ' sourcing-toggle--active' : ''}`}
-          onClick={() => setShowSourcing(v => !v)}
-          type="button"
-        >
-          {showSourcing ? '✕ Hide Garments to Source' : '◆ Top Garments to Source'}
-        </button>
-
-        {showSourcing && (
-          <div className="sourcing-body">
-            {sourcingLoading && (
-              <p className="sourcing-status">Generating recommendations…</p>
-            )}
-            {sourcingError && (
-              <p className="sourcing-error">{sourcingError}</p>
-            )}
-            {sourcingData && sourcingData.length > 0 && (
+        <div className="sourcing-body">
+          <div className="sourcing-always-label">Top Garments to Source</div>
+          {sourcingLoading && (
+            <p className="sourcing-status">Generating recommendations…</p>
+          )}
+          {sourcingError && (
+            <p className="sourcing-error">{sourcingError}</p>
+          )}
+          {sourcingData && sourcingData.length > 0 && (
+            <>
               <div className="sourcing-list">
                 {sourcingData.map((g, i) => (
                   <div className="sourcing-item" key={i}>
@@ -226,9 +219,30 @@ export default function TrendDetail({ keyword, period, inline = false, onSearch 
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-        )}
+
+              <div className="depop-section">
+                <div className="depop-section-label">Similar on Depop</div>
+                <div className="depop-list">
+                  {sourcingData.map((g, i) => {
+                    const query = g.item.replace(/\s*\([^)]*\)/g, '').replace(/,/g, '').trim()
+                    return (
+                      <a
+                        key={i}
+                        className="depop-link"
+                        href={`https://www.depop.com/search/?q=${encodeURIComponent(query)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <span className="depop-link-name">{query}</span>
+                        <span className="depop-link-action">Search on Depop →</span>
+                      </a>
+                    )
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

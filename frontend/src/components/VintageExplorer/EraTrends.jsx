@@ -1,3 +1,22 @@
+const LIFECYCLE_CONFIG = {
+  'Emerging':     { label: 'Emerging',     color: '#4fc3f7', bg: 'rgba(79,195,247,0.1)'  },
+  'Accelerating': { label: 'Accelerating', color: '#66bb6a', bg: 'rgba(102,187,106,0.1)' },
+  'Peak':         { label: 'Peak Demand',  color: '#ffa726', bg: 'rgba(255,167,38,0.1)'  },
+  'Saturation':   { label: 'Saturating',   color: '#ff7043', bg: 'rgba(255,112,67,0.1)'  },
+  'Decline':      { label: 'Declining',    color: '#ef5350', bg: 'rgba(239,83,80,0.1)'   },
+  'Dormant':      { label: 'Dormant',      color: '#666',    bg: 'rgba(255,255,255,0.05)'},
+  'Revival':      { label: 'Reviving',     color: '#ab47bc', bg: 'rgba(171,71,188,0.1)'  },
+}
+
+function getLifecycleStyle(stage) {
+  if (!stage) return null
+  if (LIFECYCLE_CONFIG[stage]) return LIFECYCLE_CONFIG[stage]
+  for (const [key, cfg] of Object.entries(LIFECYCLE_CONFIG)) {
+    if (stage.toLowerCase().includes(key.toLowerCase())) return cfg
+  }
+  return { label: stage, color: '#888', bg: 'rgba(255,255,255,0.05)' }
+}
+
 // Map of common vintage color names → approximate CSS colors
 const COLOR_MAP = {
   'black': '#111',
@@ -226,8 +245,61 @@ export default function EraTrends({ era, marketData, onTrack, trackedKeywords })
         <Section label="Silhouettes" items={era.silhouettes} onTrack={onTrack} trackedKeywords={trackedKeywords} />
         <Section label="Aesthetics" items={era.aesthetics} onTrack={onTrack} trackedKeywords={trackedKeywords} />
         <Section label="Brands" items={era.brands} onTrack={onTrack} trackedKeywords={trackedKeywords} />
-        <TopGarments garments={era.key_garments} garmentPrices={marketData?.garment_prices} onTrack={onTrack} trackedKeywords={trackedKeywords} />
       </div>
+
+      {/* ── Market Data ── */}
+      {marketData && (
+        <div className="gc-result-card gc-market-card era-market-card">
+          <div className="gc-market-header">
+            <div className="gc-section-label">Market Data</div>
+            {marketData.lifecycle_stage && (() => {
+              const cfg = getLifecycleStyle(marketData.lifecycle_stage)
+              return (
+                <span className="gc-lifecycle-badge" style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.color + '55' }}>
+                  {cfg.label}{marketData.demand_score != null ? ` · ${marketData.demand_score}` : ''}
+                </span>
+              )
+            })()}
+          </div>
+
+          <div className="gc-price-stats-row">
+            {[
+              { label: 'Min', val: marketData.price_stats?.min },
+              { label: 'Avg', val: marketData.price_stats?.avg, highlight: true },
+              { label: 'Max', val: marketData.price_stats?.max },
+            ].map(({ label, val, highlight }) => (
+              <div key={label} className={`gc-price-stat${highlight ? ' gc-price-stat--avg' : ''}`}>
+                <span className="gc-price-stat-label">{label}</span>
+                <span className="gc-price-stat-value">{val != null ? `$${val.toFixed(2)}` : '—'}</span>
+              </div>
+            ))}
+            <div className="gc-price-stat gc-price-stat--muted">
+              <span className="gc-price-stat-label">Listings</span>
+              <span className="gc-price-stat-value">{marketData.price_stats?.count ?? '—'}</span>
+            </div>
+          </div>
+
+          <div className="gc-platform-row">
+            {['ebay', 'etsy', 'poshmark', 'depop'].map(p => {
+              const d = (marketData.by_platform || {})[p]
+              return (
+                <div key={p} className={`gc-platform-chip${d ? '' : ' gc-platform-chip--empty'}`}>
+                  <span className="gc-platform-name">{p}</span>
+                  <span className="gc-platform-price">{d ? `$${d.avg.toFixed(2)}` : '—'}</span>
+                </div>
+              )
+            })}
+          </div>
+
+          {!marketData.price_stats && Object.keys(marketData.by_platform || {}).length === 0 && (
+            <p className="gc-market-empty-note">
+              Price data populates as keywords matching this era are tracked in Trend Forecast.
+            </p>
+          )}
+        </div>
+      )}
+
+      <TopGarments garments={era.key_garments} garmentPrices={marketData?.garment_prices} onTrack={onTrack} trackedKeywords={trackedKeywords} />
     </div>
   )
 }

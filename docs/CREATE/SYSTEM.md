@@ -1,331 +1,443 @@
-# SYSTEM.md — Fashion Trend Forecasting Platform
+# SYSTEM.md — Fashion Resale Tool
 
 ## 1. Overview
 
-A full-stack application that detects and predicts fashion resale trend cycles using open market and search data. The system aggregates signals from Google Trends, eBay sold listings, Reddit, and Depop to compute composite trend scores, surface the top emerging trends, and let users explore any fashion keyword in depth.
+A full-stack application that detects and predicts fashion resale trend cycles and classifies vintage garments by era. The system aggregates signals from Google Trends, eBay, Etsy, Poshmark, Reddit, and News to compute composite trend scores, surface the top emerging trends, let users explore any fashion keyword in depth, and identify the historical era of a vintage garment using Claude's vision API.
 
 ---
 
-## 2. Architecture
+## 2. High-Level Architecture
 
-### 2.1 High-Level Diagram
+```mermaid
+flowchart TD
+    Browser["Browser"] -->|HTTP :80| Nginx["Nginx\n(Frontend Container)"]
+    Nginx -->|Static files| React["React SPA\n(Vite build)"]
+    Nginx -->|/api/* proxy| FastAPI["FastAPI\n(Backend Container :8000)"]
 
+    FastAPI --> Auth["auth/\nJWT + CSV"]
+    FastAPI --> Trends["trends/\nScoring + API"]
+    FastAPI --> Chat["chat/\nStella — Claude Haiku"]
+    FastAPI --> Vintage["vintage/\nExplorer + Classifier"]
+    FastAPI --> Scheduler["scheduler/\nAPScheduler"]
+
+    Scheduler -->|every 6h| Scrapers["Scrapers\nGoogle Trends · eBay · Etsy\nPoshmark · Reddit · News · Pinterest"]
+    Scrapers --> SQLite[("SQLite\n/app/data/trends.db")]
+    Vintage -->|Claude Sonnet 4.6| Anthropic["Anthropic API"]
+    Chat -->|Claude Haiku| Anthropic
+    FastAPI --> SQLite
+
+    style Browser fill:#1a1a1a,color:#e0e0e0
+    style Nginx fill:#1c2b1c,color:#a8d5a8
+    style React fill:#1c2b3a,color:#a8c8e8
+    style FastAPI fill:#2b1c1c,color:#e8a8a8
+    style SQLite fill:#2b2b1c,color:#e8e0a8
+    style Anthropic fill:#1c1c2b,color:#b8a8e8
 ```
-┌─────────────────────┐       ┌─────────────────────────────────────┐
-│   Frontend Container│       │        Backend Container            │
-│                     │       │                                     │
-│  React App          │       │  FastAPI Server                     │
-│  (Mobile-Adaptive)  │◄─────►│    ├── Auth Module (CSV-based)      │
-│                     │ Nginx │    ├── Trend API                    │
-│  Nginx (reverse     │ proxy │    ├── Scraper Service              │
-│  proxy + static     │       │    ├── Scheduler (APScheduler)      │
-│  file serving)      │       │    └── SQLite Database              │
-└─────────────────────┘       └─────────────────────────────────────┘
-```
-
-### 2.2 Containers
-
-| Container | Role | Tech |
-|-----------|------|------|
-| **frontend** | Serves React SPA, proxies `/api` requests to backend | Nginx + React (production build) |
-| **backend** | REST API, scraping, scheduling, auth, data storage | FastAPI + Python |
-
-### 2.3 Networking
-
-- Nginx in the frontend container serves the React static build and reverse-proxies all `/api/*` requests to the backend container.
-- Docker Compose creates a shared bridge network so the frontend container can reach the backend container by service name (e.g., `http://backend:8000`).
 
 ---
 
 ## 3. Frontend
 
-### 3.1 Framework & Tooling
+### 3.1 Tech Stack
 
-- **React** (with Vite for dev/build)
-- **CSS**: Mobile-adaptive responsive design (CSS Grid/Flexbox, media queries — or a lightweight library like Tailwind CSS)
-- **Charting**: Recharts or Chart.js for time-series graphs
-- **Maps**: react-simple-maps or Leaflet for region heatmaps
+| Concern | Library |
+|---------|---------|
+| Framework | React 18 + Vite |
+| HTTP client | Axios (with JWT interceptor) |
+| Charts | Recharts |
+| Styling | Plain CSS (dark theme, CSS Grid/Flexbox) |
+| Deployment | Nginx (static serve + `/api` reverse proxy) |
 
-### 3.2 Pages & Components
+### 3.2 App Routing
 
-#### 3.2.1 Landing Page — Login/Registration
+```mermaid
+flowchart TD
+    Root["/"] -->|not authenticated| Landing["LandingPage\n• Sign In / Create Account\n• Preview carousels\n• Moodboard image carousels"]
+    Root -->|authenticated| Shell["AppShell\n(protected route → /dashboard)"]
 
-- Simple form with email + password fields
-- Toggle between Login and Register modes
-- On success, store JWT token in localStorage and redirect to Dashboard
-- On failure, show inline error messages
+    Shell -->|mode: home| Home["HomePage\n• Nav cards to Trend / Vintage\n• Live image carousels"]
+    Shell -->|mode: dashboard| Dashboard["Dashboard\n• Top 10 Trends\n• Keyword search\n• Compare panel\n• Ranking Forecast\n• Stella Chatbot"]
+    Shell -->|mode: classify| Classify["GarmentClassifier\n• Descriptor chips\n• Image upload (up to 10)\n• Claude era classification\n• Market data + Etsy listings"]
+    Shell -->|mode: vintage| Vintage["VintageExplorer\n• 24-era browser\n• Era moodboard images\n• Style profile + market data\n• Top garments to source"]
 
-#### 3.2.2 Dashboard
+    Classify -->|Explore this era| Vintage
+    Vintage -->|Classify button| Classify
+```
 
-The main view after login. Composed of the following sections:
-
-**A. Controls Bar (top)**
-
-| Control | Description |
-|---------|-------------|
-| **Search Bar** | Text input for custom keyword search. Triggers on-demand scraping if the keyword is not already cached. |
-| **Time Period Selector** | Dropdown or slider: 7 / 14 / 30 / 60 / 90 days. Defaults to 7 days. |
-
-**B. Top 10 Emerging Trends (main content)**
-
-- Default view: a ranked list/card grid of the top 10 trends by composite score growth over the selected time period.
-- Each trend card shows:
-  - **Rank** (1–10)
-  - **Keyword** name
-  - **Composite Score** value and delta (e.g., +23%)
-  - **Lifecycle Stage** badge (Emerging, Accelerating, Peak, Saturation, Decline, Dormant)
-
-- **Expanded view** (click/tap a card to expand):
-  - **Search Volume Over Time** — line chart (Google Trends data)
-  - **eBay Avg Sold Price Over Time** — line chart
-  - **Sales Volume Over Time** — bar/line chart (eBay sold count)
-  - **Price Volatility** — metric or mini chart (std dev or coefficient of variation of price)
-  - **Region Heatmap** — choropleth map with toggle between US states and global countries
-  - **Lifecycle Position** — visual indicator showing where this trend sits in the cycle
-
-**C. Custom Search Results**
-
-- When a user searches a custom keyword, the dashboard replaces the top-10 view with a single-trend deep dive using the same expanded view layout above.
-- A "Back to Top Trends" button returns to the default view.
-
-### 3.3 Mobile-Adaptive Design
-
-- Breakpoints: mobile (<768px), tablet (768–1024px), desktop (>1024px)
-- Cards stack vertically on mobile, grid on tablet/desktop
-- Charts resize responsively
-- Collapsible navigation/controls on small screens
-
-### 3.4 Nginx Configuration (Frontend Container)
+### 3.3 Component Tree
 
 ```
-server {
-    listen 80;
+src/
+├── App.jsx                          # Auth routing (public / protected)
+├── components/
+│   ├── LandingPage.jsx/css          # Login page + preview cards + moodboard carousels
+│   ├── HomePage.jsx/css             # Post-login hub with live image carousels
+│   ├── Dashboard.jsx/css            # Trend forecast main view
+│   ├── TrendCard.jsx/css            # Collapsible trend card (scroll-to-top on expand)
+│   ├── TrendDetail.jsx/css          # Expanded view: charts, sourcing, Depop links
+│   ├── TrendMoodboard.jsx/css       # Image grid for a trend keyword
+│   ├── RankingForecast.jsx/css      # Top 10 + challengers panel
+│   ├── CompareSection.jsx/css       # Side-by-side keyword comparison
+│   ├── KeywordsPanel.jsx/css        # Add / remove tracked keywords
+│   ├── ChatBot.jsx/css              # Stella AI chatbot overlay
+│   ├── LifecycleBadge.jsx/css       # Emerging / Peak / Decline badge
+│   ├── RegionHeatmap.jsx/css        # US state + global choropleth map
+│   ├── TrendCycleIndicator.jsx/css  # Visual lifecycle position indicator
+│   ├── CorrelationPanel.jsx         # Correlated keyword panel
+│   ├── Charts/                      # Recharts wrappers
+│   │   ├── VolumeChart.jsx
+│   │   ├── PriceChart.jsx
+│   │   ├── SalesVolumeChart.jsx
+│   │   ├── SeasonalChart.jsx
+│   │   ├── SentimentChart.jsx
+│   │   ├── SocialMentionsChart.jsx
+│   │   ├── CompareChart.jsx
+│   │   ├── SellThroughChart.jsx
+│   │   └── VolatilityDisplay.jsx
+│   ├── GarmentClassifier/
+│   │   ├── GarmentClassifier.jsx/css  # Two-column classifier UI
+│   │   └── ValidationPanel.jsx/css    # Accuracy validation panel
+│   └── VintageExplorer/
+│       ├── VintageExplorer.jsx/css    # Top-level era browser
+│       ├── EraSelector.jsx            # Era selector grid
+│       ├── EraTrends.jsx              # Era detail: style profile + market data
+│       ├── EraImageGrid.jsx           # 6-photo moodboard grid
+│       ├── EraBlockGrid.jsx           # Block layout for era sections
+│       └── EraBlockEras.jsx           # Related eras blocks
+├── hooks/
+│   └── useAuth.jsx                  # JWT auth context (login / register / logout)
+└── services/
+    └── api.js                       # Axios instance, auto-attaches Bearer token
+```
 
-    # Serve React static build
-    location / {
-        root /usr/share/nginx/html;
-        index index.html;
-        try_files $uri $uri/ /index.html;  # SPA fallback
-    }
+### 3.4 Auth Flow
 
-    # Reverse proxy API calls to backend
-    location /api/ {
-        proxy_pass http://backend:8000/api/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
+```mermaid
+sequenceDiagram
+    participant User
+    participant LandingPage
+    participant API
+    participant localStorage
+
+    User->>LandingPage: Submit email + password
+    LandingPage->>API: POST /api/auth/login (or /register)
+    API-->>LandingPage: { access_token, token_type: "bearer" }
+    LandingPage->>localStorage: store token
+    LandingPage->>User: Redirect to /dashboard
+    Note over API: All subsequent requests<br/>include Authorization: Bearer <token>
 ```
 
 ---
 
 ## 4. Backend
 
-### 4.1 Framework & Structure
+### 4.1 Tech Stack
 
-- **FastAPI** (Python 3.11+)
-- Project layout:
+| Concern | Library |
+|---------|---------|
+| Framework | FastAPI 0.115 + Uvicorn |
+| Auth | python-jose (JWT HS256) + passlib/bcrypt |
+| User store | pandas CSV (`data/users.csv`) |
+| Database | SQLite via `sqlite3` (sync) |
+| Scheduling | APScheduler 3.10 (BackgroundScheduler) |
+| AI | anthropic 0.40 (Claude Sonnet 4.6 + Haiku 4.5) |
+| Image processing | Pillow, imagehash |
+| Scraping | requests, BeautifulSoup4, pytrends, praw |
+
+### 4.2 Project Structure
 
 ```
 backend/
 ├── app/
-│   ├── main.py              # FastAPI app entry, router registration
-│   ├── config.py             # Settings (env vars, paths, constants)
-│   ├── models.py             # Pydantic models (request/response schemas)
-│   ├── database.py           # SQLite connection and table setup
+│   ├── main.py              # FastAPI app, router registration, startup/shutdown
+│   ├── config.py            # Settings (env vars via pydantic-settings)
+│   ├── database.py          # init_db(), get_connection(), all CREATE TABLE statements
 │   ├── auth/
-│   │   ├── router.py         # /api/auth/login, /api/auth/register
-│   │   ├── service.py        # Password hashing, JWT creation/validation
-│   │   └── users.csv         # Local user store (email, hashed_password)
+│   │   ├── router.py        # POST /api/auth/register, POST /api/auth/login
+│   │   └── service.py       # hash_password, verify_password, create_token, get_current_user
 │   ├── trends/
-│   │   ├── router.py         # /api/trends/top, /api/trends/search
-│   │   ├── service.py        # Composite score calculation, lifecycle detection
-│   │   └── schemas.py        # Trend-specific Pydantic models
+│   │   └── router.py        # All /api/trends/* endpoints
+│   ├── chat/
+│   │   └── router.py        # POST /api/chat, GET/DELETE /api/chat/history (Stella)
+│   ├── vintage/
+│   │   ├── router.py        # All /api/vintage/* endpoints
+│   │   ├── classifier.py    # classify_garment() → Claude Sonnet 4.6
+│   │   ├── validation.py    # Etsy listing search, validation dataset helpers
+│   │   └── era_data.json    # 24-era definitions (label, period, colors, fabrics, etc.)
 │   ├── scrapers/
-│   │   ├── google_trends.py  # pytrends wrapper
-│   │   ├── ebay.py           # eBay sold listings scraper
-│   │   ├── reddit.py         # Reddit fashion subreddit scraper
-│   │   ├── depop.py          # Depop listing scraper
-│   │   └── discovery.py      # Auto-discovery of new keywords
+│   │   ├── google_trends.py # pytrends wrapper, 3-month backfill, US/global regions
+│   │   ├── ebay.py          # eBay Browse API (OAuth), avg price + listing count
+│   │   ├── etsy.py          # Etsy API v3, avg price + listing count
+│   │   ├── poshmark.py      # Poshmark HTML scraper, listing count + prices
+│   │   ├── reddit.py        # Reddit JSON API, mention count per subreddit
+│   │   ├── news.py          # Google News RSS, news mention count
+│   │   ├── pinterest.py     # Pinterest image scraper (era moodboards + keyword images)
+│   │   └── discovery.py     # Auto-discovery: load seed keywords, scale classification
 │   └── scheduler/
-│       └── jobs.py           # APScheduler job definitions
+│       └── jobs.py          # APScheduler job definitions
 ├── data/
-│   ├── trends.db             # SQLite database file
-│   └── seed_keywords.json    # Curated seed keyword list
+│   ├── trends.db            # SQLite database (Docker volume — persisted)
+│   ├── users.csv            # User credentials store
+│   └── seed_keywords.json   # Curated seed keyword list
 ├── requirements.txt
 └── Dockerfile
 ```
 
-### 4.2 Authentication
+### 4.3 Authentication
 
-- **Storage**: `users.csv` managed by pandas
-  - Columns: `email`, `hashed_password`, `created_at`
-- **Password hashing**: `bcrypt` via `passlib`
-- **Session/token**: JWT tokens (via `python-jose`)
-  - Issued on login/register, included as `Authorization: Bearer <token>` header
-  - Token expiry: 24 hours
-- **Endpoints**:
-  - `POST /api/auth/register` — create user, return JWT
-  - `POST /api/auth/login` — validate credentials, return JWT
+- **Storage**: `data/users.csv` via pandas — columns: `email`, `hashed_password`, `created_at`
+- **Hashing**: bcrypt via passlib
+- **Tokens**: JWT (HS256), `python-jose`, 24-hour expiry
+- **Dependency**: `get_current_user` FastAPI dependency injected on all protected routes
+- **Seed keywords** are `source='seed'` and cannot be deleted (returns 403)
 
-### 4.3 Data Storage (SQLite)
+### 4.4 Database Schema
 
-#### Tables
+```mermaid
+erDiagram
+    keywords {
+        int id PK
+        text keyword UK
+        text source
+        text status
+        timestamp added_at
+        timestamp last_searched_at
+        text scale
+    }
+    trend_data {
+        int id PK
+        text keyword
+        text source
+        text metric
+        real value
+        text region
+        timestamp recorded_at
+    }
+    trend_scores {
+        int id PK
+        text keyword
+        int period_days
+        real volume_growth
+        real price_growth
+        real composite_score
+        text lifecycle_stage
+        timestamp computed_at
+    }
+    trend_images {
+        int id PK
+        text keyword
+        text source
+        text image_url UK
+        text title
+        real price
+        text item_url
+        timestamp scraped_at
+        text phash
+    }
+    chat_messages {
+        int id PK
+        text user_email
+        text role
+        text content
+        timestamp created_at
+    }
+    user_comparisons {
+        int id PK
+        text user_email
+        text keyword
+        timestamp added_at
+    }
+    validation_items {
+        int id PK
+        text source
+        text true_era_id
+        text true_decade
+        text title
+        text tags
+        real price
+        text item_url UK
+        text image_url
+        timestamp scraped_at
+    }
+    validation_results {
+        int id PK
+        int item_id FK
+        text predicted_era_id
+        real predicted_confidence
+        text alternate_era_ids
+        bool is_decade_correct
+        bool is_era_correct
+        text raw_response
+        timestamp computed_at
+    }
 
-**`trend_data`** — raw scraped data points
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | INTEGER PK | Auto-increment |
-| keyword | TEXT | Fashion keyword |
-| source | TEXT | `google_trends`, `ebay`, `reddit`, `depop` |
-| metric | TEXT | `search_volume`, `avg_price`, `sold_count`, `mention_count`, `listing_count` |
-| value | REAL | Numeric value |
-| region | TEXT | Region code (US state, country ISO) — nullable |
-| recorded_at | TIMESTAMP | When the data point was captured |
-
-**`keywords`** — tracked keywords registry
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | INTEGER PK | Auto-increment |
-| keyword | TEXT UNIQUE | The fashion keyword |
-| source | TEXT | `seed`, `auto_discovered`, `user_search` |
-| status | TEXT | `active`, `pending_review`, `inactive` |
-| added_at | TIMESTAMP | When the keyword was added |
-
-**`trend_scores`** — precomputed composite scores (refreshed by scheduler)
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | INTEGER PK | Auto-increment |
-| keyword | TEXT | Fashion keyword |
-| period_days | INTEGER | Time window (7, 14, 30, 60, 90) |
-| volume_growth | REAL | % growth in search/sales volume |
-| price_growth | REAL | % growth in avg sold price |
-| composite_score | REAL | 0.6 * volume_growth + 0.4 * price_growth |
-| lifecycle_stage | TEXT | Emerging / Accelerating / Peak / Saturation / Decline / Dormant |
-| computed_at | TIMESTAMP | When this score was last calculated |
-
-### 4.4 Data Sources & Scrapers
-
-#### 4.4.1 Google Trends
-
-- **Library**: `pytrends` (unofficial Google Trends API)
-- **Data collected**: Search interest over time (relative volume 0–100), interest by region (US states + worldwide)
-- **Rate limiting**: Respect Google's implicit rate limits; add random delays between requests
-
-#### 4.4.2 eBay Sold Listings
-
-- **Method**: Web scraping eBay "Sold Items" search results (requests + BeautifulSoup)
-- **Data collected**:
-  - Sold price per item
-  - Number of sold items (volume)
-  - Date sold
-- **Derived metrics**: Average sold price, sales volume, price standard deviation (volatility)
-
-#### 4.4.3 Reddit
-
-- **Method**: Reddit API (via `praw`) or scraping
-- **Subreddits**: r/fashion, r/streetwear, r/malefashionadvice, r/femalefashionadvice, r/thriftstorehauls, r/Depop, r/VintageFashion (and similar)
-- **Data collected**: Post/comment mention counts for tracked keywords, trending terms in titles
-- **Auto-discovery**: Parse trending post titles and comments for new fashion keywords
-
-#### 4.4.4 Depop
-
-- **Method**: Web scraping Depop search/trending pages (requests + BeautifulSoup)
-- **Data collected**:
-  - Listing count for keyword
-  - Listing prices
-  - Sold status
-- **Auto-discovery**: Scrape Depop's trending/explore page for emerging terms
-
-### 4.5 Trend Discovery (Seed + Auto-Discovery)
-
-1. **Seed list** (`data/seed_keywords.json`): A curated JSON array of fashion keywords to begin tracking (e.g., "vintage denim", "gorpcore", "quiet luxury", "ballet flats", "Y2K", "coquette").
-2. **Auto-discovery**: The `discovery.py` module scans Reddit trending posts and Depop explore/trending pages, extracts candidate keywords using frequency analysis, and inserts them into the `keywords` table with `status = 'pending_review'`.
-3. **Review flow**: Pending keywords can be promoted to `active` or marked `inactive` (future: admin UI; for now: manual DB update or simple API endpoint).
-
-### 4.6 Scheduling (APScheduler)
-
-| Job | Frequency | Description |
-|-----|-----------|-------------|
-| **scrape_all_sources** | Every 6 hours | Scrape Google Trends, eBay, Reddit, Depop for all `active` keywords. Insert raw data into `trend_data`. |
-| **compute_scores** | Every 6 hours (after scrape) | Recalculate composite scores and lifecycle stages for all active keywords across all time periods. Update `trend_scores`. |
-| **discover_keywords** | Every 24 hours | Run auto-discovery on Reddit and Depop. Insert new candidates as `pending_review`. |
-
-### 4.7 Composite Score Calculation
-
-```
-composite_score = 0.6 * volume_growth + 0.4 * price_growth
+    keywords ||--o{ trend_data : "keyword"
+    keywords ||--o{ trend_scores : "keyword"
+    keywords ||--o{ trend_images : "keyword"
+    validation_items ||--|| validation_results : "item_id"
 ```
 
-- **volume_growth**: Percentage change in combined search volume (Google) + sales volume (eBay) + mention count (Reddit) + listing count (Depop) between the first half and second half of the selected time window.
-- **price_growth**: Percentage change in eBay average sold price between the first half and second half of the selected time window.
+### 4.5 Scraping & Scheduling Pipeline
 
-### 4.8 Lifecycle Stage Detection
+```mermaid
+flowchart LR
+    subgraph Sources
+        GT["Google Trends\npytrends · search_volume\nUS + global regions"]
+        EB["eBay\nBrowse API · avg_price\nsold_count"]
+        ET["Etsy\nAPI v3 · avg_price\nlisting_count"]
+        PM["Poshmark\nHTML scraper\nprices + listing_count"]
+        RD["Reddit\nJSON API · mention_count\n6 subreddits"]
+        NW["Google News\nRSS · news_mentions"]
+        PT["Pinterest\nImage scraper\nera moodboards + keyword images"]
+    end
 
-The lifecycle stage is determined by analyzing the composite score trajectory and growth rate:
+    subgraph Scheduler["APScheduler (BackgroundScheduler)"]
+        J1["scrape_and_score\nevery 6h · immediate"]
+        J2["catchup_google_trends\nevery 6h · +2h offset"]
+        J3["discover_keywords\nevery 24h"]
+        J4["expire_stale_keywords\nevery 24h"]
+        J5["refine_keyword_scales\nevery 7d"]
+    end
 
-| Stage | Criteria |
-|-------|----------|
-| **Emerging** | Low absolute volume, positive and accelerating growth |
-| **Accelerating** | High growth rate, volume increasing rapidly |
-| **Peak** | Volume near maximum, growth rate approaching zero |
-| **Saturation** | Volume plateauing or slightly declining, growth rate near zero or slightly negative |
-| **Decline** | Volume dropping, sustained negative growth |
-| **Dormant** | Very low volume, minimal activity |
+    J1 --> GT & EB & ET & PM & RD & NW
+    J1 -->|after scrape| Score["compute_all_scores()\ncomposite = 0.6×volume + 0.4×price\nlifecycle stage detection"]
+    J2 --> GT
+    J3 --> Discovery["discovery.py\nseed keywords + scale classification"]
 
-Logic: Use rolling growth rates over sub-windows within the selected period. Compare current growth rate to previous growth rate to detect acceleration/deceleration.
+    GT & EB & ET & PM & RD & NW --> DB[("trend_data")]
+    PT --> ImgDB[("trend_images")]
+    Score --> ScoreDB[("trend_scores")]
+    Discovery --> KwDB[("keywords")]
+```
 
-### 4.9 API Endpoints
+**Composite Score Formula:**
+```
+composite_score = 0.6 × volume_growth + 0.4 × price_growth
+```
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/auth/register` | No | Register new user |
-| POST | `/api/auth/login` | No | Login, receive JWT |
-| GET | `/api/trends/top` | Yes | Get top 10 trends. Query params: `period` (7/14/30/60/90 days, default 7) |
-| GET | `/api/trends/search` | Yes | Search a custom keyword. Query params: `keyword`, `period`. Triggers on-demand scrape if no recent data. |
-| GET | `/api/trends/{keyword}/details` | Yes | Full detail for a keyword: time series, price, volume, volatility, region data, lifecycle |
-| GET | `/api/trends/{keyword}/regions` | Yes | Region heatmap data. Query params: `scope` (`us` or `global`) |
-| GET | `/api/keywords` | Yes | List all tracked keywords and their status |
-| POST | `/api/keywords/{keyword}/activate` | Yes | Promote a `pending_review` keyword to `active` |
+**Lifecycle Stages:** Emerging → Accelerating → Peak → Saturation → Decline → Dormant
 
-### 4.10 On-Demand Scraping Flow
+**Google Trends Catchup:** On first scrape `pytrends` uses `timeframe="today 3-m"`, returning ~12 weeks of weekly history regardless of when the keyword was added. The `catchup_google_trends` job runs 2 hours after the main scrape to avoid rate-limit collisions and fills in any keywords that returned empty data.
 
-When a user searches a custom keyword:
+### 4.6 Vintage Module
 
-1. Check `trend_data` for recent data (< 6 hours old) for that keyword.
-2. If fresh data exists → compute and return results immediately.
-3. If no data or stale → trigger scraping for that keyword across all sources.
-4. Insert raw data into `trend_data`, compute scores, and return results.
-5. Add the keyword to `keywords` table with `source = 'user_search'` and `status = 'active'` so it gets picked up by scheduled jobs going forward.
+#### Era Data
+
+- 24 fashion eras defined in `era_data.json`
+- Each era has: `id`, `label`, `period`, `colors`, `fabrics`, `silhouettes`, `key_garments`, `brands`, `aesthetics`, `prints`, `hardware`, `embellishments`, `labels`, `image_search_terms`
+- `image_search_terms` is stripped from the public API response
+
+#### Garment Classifier
+
+```mermaid
+sequenceDiagram
+    participant UI as GarmentClassifier UI
+    participant API as POST /api/vintage/classify
+    participant Clf as classifier.py
+    participant Claude as Claude Sonnet 4.6
+
+    UI->>API: multipart/form-data\n(descriptor chips + up to 10 images)
+    API->>Clf: classify_garment(descriptors, images)
+    Clf->>Clf: Resize images to ≤1024px · encode base64 JPEG
+    Clf->>Clf: Build era reference list from era_data.json
+    Clf->>Claude: system prompt + era list + descriptors + image blocks
+    Claude-->>Clf: JSON { primary_era, alternate_eras, matching_features, related_keywords }
+    Clf-->>API: parsed dict
+    API-->>UI: { status: "ok", result: { ... } }
+```
+
+**Inputs:** `fabrics`, `prints`, `silhouettes`, `brands`, `colors`, `aesthetics`, `key_garments`, `hardware`, `embellishments`, `labels`, `notes` (all optional) + up to 10 image files
+
+**Output:**
+```json
+{
+  "primary_era": { "id", "label", "confidence", "reasoning" },
+  "alternate_eras": [ { "id", "label", "confidence", "reasoning" }, ... ],
+  "matching_features": ["feature 1", "feature 2", ...],
+  "related_keywords": ["searchable product term", ...]
+}
+```
+
+#### Stella Chatbot
+
+- **Model**: `claude-haiku-4-5-20251001`
+- **Role**: Fashion trend expert and data analyst — interprets composite scores, lifecycle stages, and market data in plain language
+- **Context injection**: The current view's data (keyword, scores, top trends, comparison series) is appended to the last user message before the API call
+- **History persistence**: Every exchange (user message + assistant reply) is stored in `chat_messages` and returned on `GET /api/chat/history`
 
 ---
 
-## 5. Docker Compose
+## 5. API Endpoints
+
+### Authentication (no auth required)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Create account, returns JWT |
+| POST | `/api/auth/login` | Validate credentials, returns JWT |
+
+### Trends (auth required unless noted)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/trends/top` | Top trends by composite score. `?period=7\|14\|30\|60\|90` |
+| GET | `/api/trends/search` | Search a keyword; triggers on-demand scrape if stale. `?keyword=&period=` |
+| GET | `/api/trends/ranking-forecast` | Top 10 + challengers forecast. `?period=7` |
+| GET | `/api/trends/keywords/list` | All tracked keywords |
+| POST | `/api/trends/keywords/{keyword}/track` | Add keyword to tracking |
+| DELETE | `/api/trends/keywords/{keyword}` | Remove keyword (seed keywords return 403) |
+| GET | `/api/trends/{keyword}/details` | Full time-series detail. `?period=` |
+| GET | `/api/trends/{keyword}/seasonal` | Seasonal breakdown |
+| GET | `/api/trends/{keyword}/images` | Product images — **public, no auth required** |
+| GET | `/api/trends/keywords/{keyword}/sourcing` | AI-generated garments to source (Claude) |
+
+### Chat — Stella (auth required)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/chat` | Send message, receive Stella's reply |
+| GET | `/api/chat/history` | Full message history for current user |
+| DELETE | `/api/chat/history` | Clear history for current user |
+
+### Vintage (auth required unless noted)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/vintage/eras` | List all 24 eras (id, label, period) |
+| GET | `/api/vintage/eras/{era_id}` | Full era detail (strips `image_search_terms`) |
+| GET | `/api/vintage/eras/{era_id}/images` | Era moodboard images — **public, no auth required** |
+| GET | `/api/vintage/eras/{era_id}/market` | Market pricing data for an era |
+| GET | `/api/vintage/descriptor-options` | Chip options for the classifier (aggregated from all eras) |
+| POST | `/api/vintage/classify` | Classify garment via Claude Sonnet 4.6 (multipart/form-data) |
+| GET | `/api/vintage/etsy-listings` | Etsy listing search. `?q=` |
+
+---
+
+## 6. Docker Compose
 
 ```yaml
-version: "3.8"
-
 services:
   frontend:
     build: ./frontend
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
+    ports: [ "80:80" ]
+    depends_on: [ backend ]
 
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
+    ports: [ "8000:8000" ]
     volumes:
-      - backend-data:/app/data    # Persist SQLite DB and CSV across restarts
+      - backend-data:/app/data   # persists trends.db and users.csv
     environment:
-      - JWT_SECRET=<generate-a-secret>
-      - REDDIT_CLIENT_ID=<your-reddit-client-id>
-      - REDDIT_CLIENT_SECRET=<your-reddit-client-secret>
+      - JWT_SECRET
+      - ANTHROPIC_API_KEY
+      - EBAY_APP_ID
+      - EBAY_CERT_ID
+      - ETSY_API_KEY
+      - REDDIT_CLIENT_ID
+      - REDDIT_CLIENT_SECRET
+      - PEXELS_API_KEY
+      - GOOGLE_CSE_API_KEY
+      - GOOGLE_CSE_CX
 
 volumes:
   backend-data:
@@ -333,120 +445,46 @@ volumes:
 
 ---
 
-## 6. Project Directory Structure
+## 7. Test Suite
 
-```
-cs667/
-├── docs/
-│   └── CREATE/
-│       └── SYSTEM.md           # This file
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── LoginForm.jsx
-│   │   │   ├── Dashboard.jsx
-│   │   │   ├── TrendCard.jsx
-│   │   │   ├── TrendDetail.jsx
-│   │   │   ├── SearchBar.jsx
-│   │   │   ├── TimePeriodSelector.jsx
-│   │   │   ├── RegionHeatmap.jsx
-│   │   │   ├── LifecycleBadge.jsx
-│   │   │   └── Charts/
-│   │   │       ├── VolumeChart.jsx
-│   │   │       ├── PriceChart.jsx
-│   │   │       └── VolatilityChart.jsx
-│   │   ├── services/
-│   │   │   └── api.js          # Axios/fetch wrapper for API calls
-│   │   ├── hooks/
-│   │   │   └── useAuth.js      # Auth context and token management
-│   │   ├── App.jsx
-│   │   └── main.jsx
-│   ├── nginx.conf
-│   ├── package.json
-│   └── Dockerfile
-├── backend/
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── config.py
-│   │   ├── models.py
-│   │   ├── database.py
-│   │   ├── auth/
-│   │   ├── trends/
-│   │   ├── scrapers/
-│   │   └── scheduler/
-│   ├── data/
-│   │   ├── trends.db
-│   │   ├── users.csv
-│   │   └── seed_keywords.json
-│   ├── requirements.txt
-│   └── Dockerfile
-├── docker-compose.yml
-└── README.md
+All 88 tests live in `tests/` and run inside the backend Docker container against a temporary in-memory SQLite DB (no real API calls made).
+
+```bash
+# Install pytest (wiped on container rebuild)
+docker exec cs667-backend-1 pip install pytest
+
+# Run all tests
+docker exec -w /app cs667-backend-1 python -m pytest tests/ -v
 ```
 
----
+| File | Tests | Coverage |
+|------|-------|---------|
+| `conftest.py` | — | Shared fixtures: `tmp_db`, `tmp_users`, `client` (auth overridden), `raw_client`, `registered_user`, `auth_headers`, `db_rows` helper |
+| `test_auth.py` | 17 | Register, login, JWT structure + decode, service layer, protected routes |
+| `test_chat.py` | 11 | Send messages, context injection, system prompt ("Stella"), history store/clear |
+| `test_scrapers.py` | 14 | Google Trends, eBay, Etsy, Poshmark, Reddit, News — all external calls mocked |
+| `test_trends_api.py` | 17 | Top trends, keyword CRUD, search, forecast, details, seasonal, images, sourcing |
+| `test_vintage.py` | 29 | Era listing/detail, descriptor options, classify (mocked Claude), market data, Etsy listings |
+| **Total** | **88** | 0 failures |
 
-## 7. Key Dependencies
-
-### Frontend
-- react, react-dom, react-router-dom
-- axios (HTTP client)
-- recharts or chart.js + react-chartjs-2 (charts)
-- react-simple-maps or leaflet + react-leaflet (heatmaps)
-- tailwindcss (optional, for responsive styling)
-
-### Backend
-- fastapi, uvicorn
-- pandas (CSV user management)
-- pytrends (Google Trends)
-- praw (Reddit API)
-- requests, beautifulsoup4 (web scraping for eBay, Depop)
-- apscheduler (background job scheduling)
-- python-jose (JWT tokens)
-- passlib, bcrypt (password hashing)
-- aiosqlite or sqlite3 (database)
+**Key test patterns:**
+- External APIs mocked via `unittest.mock.patch` (pytrends, requests, anthropic, urllib)
+- `app.dependency_overrides[get_current_user]` bypasses JWT auth in most tests
+- `raw_client` fixture preserves real auth for login/register/protected-route tests
+- Module-level `DB_PATH` patched to redirect all DB writes to a `tmp_path` per test
 
 ---
 
-## 8. Implementation Phases
+## 8. Key Design Decisions
 
-### Phase 1 — Foundation
-- [ ] Set up Docker Compose with frontend and backend containers
-- [ ] Implement FastAPI skeleton with health check endpoint
-- [ ] Set up React app with Vite, Nginx config, and routing
-- [ ] Implement user auth (register/login with CSV + JWT)
-- [ ] Set up SQLite database and tables
-
-### Phase 2 — Data Pipeline
-- [ ] Implement Google Trends scraper
-- [ ] Implement eBay sold listings scraper
-- [ ] Implement Reddit scraper
-- [ ] Implement Depop scraper
-- [ ] Set up APScheduler with scrape and score jobs
-- [ ] Implement composite score calculation and lifecycle detection
-- [ ] Seed keyword list and auto-discovery module
-
-### Phase 3 — Dashboard
-- [ ] Build landing page with login/registration form
-- [ ] Build dashboard layout (controls bar + trend cards)
-- [ ] Implement top 10 emerging trends view
-- [ ] Build expanded trend detail view (charts, heatmap, lifecycle badge)
-- [ ] Implement custom keyword search with on-demand scraping
-- [ ] Implement time period selector
-- [ ] Add region heatmap with US/global toggle
-- [ ] Mobile-adaptive responsive design
-
-### Phase 4 — Future Enhancements (TBD)
-- [ ] Trend forecasting / prediction model
-- [ ] (Additional features to be defined)
-
----
-
-## 9. Notes & Constraints
-
-- **Local-only for now**: No cloud deployment. Everything runs on Docker locally.
-- **User auth is intentionally simple**: CSV-based storage with pandas. No OAuth, no email verification. This is a prototype.
-- **Scraping fragility**: eBay and Depop scrapers depend on page structure and may break if those sites change their HTML. Build scrapers with error handling and fallback logic.
-- **Rate limiting**: Google Trends and Reddit have rate limits. The scheduler should space out requests and handle 429 errors with exponential backoff.
-- **Data freshness**: Scheduled scrapes every 6 hours. On-demand scrapes fill gaps for custom searches. Data older than 6 hours is considered stale for on-demand checks.
+| Decision | Rationale |
+|----------|-----------|
+| **CSV user store** | Simple prototype; no external DB dependency for auth |
+| **SQLite over Postgres** | Single-container local deployment; volume-persisted |
+| **Seed keywords protected (403 on DELETE)** | Prevents accidental loss of baseline trend data |
+| **Google Trends `today 3-m` timeframe** | Always backfills ~12 weeks of history on first scrape |
+| **Catchup job offset by +2h** | Avoids hitting Google Trends rate limits immediately after the main scrape job |
+| **Image endpoints are public** | Era and keyword moodboard images are shown on the unauthenticated landing page |
+| **Claude Sonnet for classifier, Haiku for chat** | Sonnet has better vision/reasoning accuracy; Haiku is faster and cheaper for conversational turns |
+| **`phash` deduplication for images** | Perceptual hashing removes visually similar images from the moodboard regardless of different URLs |
+| **Sourcing always visible (no toggle)** | Sourcing data loads immediately on keyword selection; no user action required |

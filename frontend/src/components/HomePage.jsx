@@ -3,7 +3,7 @@ import { useAuth } from '../hooks/useAuth'
 import api from '../services/api'
 import './HomePage.css'
 
-const TREND_SLIDES = [
+export const TREND_SLIDES = [
   {
     label: 'Demand Scoring',
     content: (
@@ -110,7 +110,7 @@ const TREND_SLIDES = [
   },
 ]
 
-const VINTAGE_SLIDES = [
+export const VINTAGE_SLIDES = [
   {
     label: 'Era Classification',
     content: (
@@ -175,7 +175,7 @@ const VINTAGE_SLIDES = [
   },
 ]
 
-function CardCarousel({ slides }) {
+export function CardCarousel({ slides }) {
   const [active, setActive] = useState(0)
   const [paused, setPaused] = useState(false)
 
@@ -238,7 +238,7 @@ const ERA_IMAGE_IDS = [
   { label: 'Early 1980s', id: 'early-1980s' },
 ]
 
-function HomeImageCarousel({ items }) {
+export function HomeImageCarousel({ items }) {
   // items: [{label, imgUrl}] — already resolved
   const [active, setActive] = useState(0)
   const [paused, setPaused] = useState(false)
