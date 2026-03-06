@@ -21,17 +21,16 @@ a {
 .nav-logo-wrap {
   display: inline-flex;
   align-items: center;
-  background: #f0a8b8;
-  border-radius: 6px;
-  padding: 2px 8px;
+  border-radius: 4px;
+  overflow: hidden;
   cursor: pointer;
   line-height: 0;
 }
 
 .nav-logo {
-  height: 28px;
+  height: 32px;
   display: block;
-  mix-blend-mode: multiply;
+  object-fit: contain;
 }
 
 /* Responsive breakpoints:

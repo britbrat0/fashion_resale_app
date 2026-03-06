@@ -21,17 +21,16 @@
 .lp-logo-wrap {
   display: inline-flex;
   align-items: center;
-  background: #f0a8b8;
-  border-radius: 8px;
-  padding: 4px 12px;
+  border-radius: 6px;
+  overflow: hidden;
   margin: 0 0 0.3rem;
   line-height: 0;
 }
 
 .lp-logo {
-  height: 44px;
+  height: 52px;
   display: block;
-  mix-blend-mode: multiply;
+  object-fit: contain;
 }
 
 .lp-subtitle {

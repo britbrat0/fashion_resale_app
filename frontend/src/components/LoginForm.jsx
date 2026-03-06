@@ -31,8 +31,8 @@ export default function LoginForm() {
   return (
     <div className="login-page">
       <div className="login-container">
-        <div className="nav-logo-wrap" style={{margin: '0 auto 0.75rem', display: 'flex', justifyContent: 'center'}}>
-          <img src="/resale-rat-logo.png" alt="Resale Rat" className="nav-logo" style={{height: '36px'}} />
+        <div className="nav-logo-wrap" style={{margin: '0 auto 0.75rem'}}>
+          <img src="/resale-rat-logo.png" alt="Resale Rat" className="nav-logo" style={{height: '40px'}} />
         </div>
         <p className="login-subtitle">
           Detect and predict fashion resale trend cycles
