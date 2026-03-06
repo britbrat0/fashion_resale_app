@@ -18,13 +18,20 @@
   margin-bottom: 2.25rem;
 }
 
-.lp-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #f0f0f0;
+.lp-logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  background: #f0a8b8;
+  border-radius: 8px;
+  padding: 4px 12px;
   margin: 0 0 0.3rem;
-  letter-spacing: -0.02em;
-  text-align: center;
+  line-height: 0;
+}
+
+.lp-logo {
+  height: 44px;
+  display: block;
+  mix-blend-mode: multiply;
 }
 
 .lp-subtitle {

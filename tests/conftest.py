@@ -1,5 +1,5 @@
 """
-Shared pytest fixtures for the Fashion Trend Forecaster backend test suite.
+Shared pytest fixtures for the Resale Rat backend test suite.
 
 All tests run against a temporary in-memory SQLite DB and a temporary users CSV
 so the real data at /app/data/ is never touched.

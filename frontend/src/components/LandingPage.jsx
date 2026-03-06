@@ -58,7 +58,9 @@ export default function LandingPage() {
   return (
     <div className="lp-root">
       <div className="lp-hero">
-        <h1 className="lp-title">Fashion Resale Tool</h1>
+        <div className="lp-logo-wrap">
+          <img src="/resale-rat-logo.png" alt="Resale Rat" className="lp-logo" />
+        </div>
         <p className="lp-subtitle">Detect and predict fashion resale trend cycles</p>
 
         <div className="lp-form-card">

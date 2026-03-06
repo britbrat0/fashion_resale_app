@@ -1,4 +1,4 @@
-# SYSTEM.md — Fashion Resale Tool
+# SYSTEM.md — Resale Rat
 
 ## 1. Overview
 

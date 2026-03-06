@@ -102,7 +102,9 @@ export default function VintageExplorer({ onGoHome, onSwitchToDashboard, onSwitc
     <div className="vintage-explorer">
       <header className="vintage-header">
         <div className="vintage-header-left">
-          <h1 className="hp-nav-title" onClick={onGoHome}>Fashion Resale Tool</h1>
+          <div className="nav-logo-wrap" onClick={onGoHome}>
+            <img src="/resale-rat-logo.png" alt="Resale Rat" className="nav-logo" />
+          </div>
           <div className="nav-toggle">
             <button className="nav-toggle-btn" onClick={onSwitchToDashboard}>
               Trend Forecast

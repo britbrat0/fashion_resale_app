@@ -17,6 +17,23 @@ a {
   text-decoration: none;
 }
 
+/* ── App logo ─────────────────────────────────────── */
+.nav-logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  background: #f0a8b8;
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.nav-logo {
+  height: 28px;
+  display: block;
+  mix-blend-mode: multiply;
+}
+
 /* Responsive breakpoints:
    mobile: <768px
    tablet: 768-1024px

@@ -326,7 +326,9 @@ export default function HomePage({ onGoToDashboard, onGoToVintage }) {
     <div className="hp-root">
       <header className="vintage-header">
         <div className="vintage-header-left">
-          <h1>Fashion Resale Tool</h1>
+          <div className="nav-logo-wrap">
+            <img src="/resale-rat-logo.png" alt="Resale Rat" className="nav-logo" />
+          </div>
         </div>
         <button className="logout-btn" onClick={logout}>Sign Out</button>
       </header>
