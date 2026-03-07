@@ -40,7 +40,7 @@ const STATIC_OPTIONS = {
   ],
   labels: [
     'ILGWU', 'ACWA', 'Union Made', 'Lot # label', 'RN # label', 'WPL # label',
-    'No care label', 'Care label present', 'Two-digit date code',
+    'No care label', 'Care label present', 'No content label', 'Content label present', 'Two-digit date code',
     'Talon zipper', 'Crown zipper', 'Scovill zipper',
     'Made in USA', 'Made in Japan', 'Made in Hong Kong', 'Made in England',
     'Woven label', 'Printed label', 'Chain stitch construction',

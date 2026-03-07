@@ -6,9 +6,9 @@ A full-stack web application for detecting and predicting fashion resale trend c
 
 ## What It Does
 
-**Trend Forecast** — Aggregates search demand, pricing, and social signals across Google Trends, eBay, Etsy, Poshmark, Reddit, and News. Computes composite trend scores, detects lifecycle stages (Emerging → Peak → Decline), forecasts 7-day rankings, and surfaces garments to source for each trending keyword.
+**Trend Forecast** — Aggregates search demand, pricing, and social signals across Google Trends, eBay, Etsy, Poshmark, Reddit, and News. Computes composite trend scores, detects lifecycle stages (Emerging → Accelerating → Peak → Saturation → Decline → Dormant → Revival), forecasts 30-day rankings, and surfaces garments to source for each trending keyword.
 
-**Vintage** — Browse all 24 fashion eras (1920s–2000s) with style profiles, moodboard photos, and market pricing data. Classify any vintage garment by era using descriptor chips and/or uploaded photos, powered by Claude Sonnet 4.6's vision API.
+**Vintage** — Browse all 24 fashion eras (1700s–2000s) with style profiles, moodboard photos, and market pricing data. Classify any vintage garment by era using descriptor chips and/or uploaded photos, powered by Claude Sonnet 4.6's vision API.
 
 **Stella** — An in-app AI chatbot (Claude Haiku) that interprets trend data, explains lifecycle stages, and answers fashion sourcing questions in context.
 
