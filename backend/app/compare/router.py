@@ -104,34 +104,25 @@ def clear_comparison(user: str = Depends(get_current_user)):
     return {"message": "Comparison cleared"}
 
 
-@router.get("/data")
-def get_comparison_data(period: int = 30, user: str = Depends(get_current_user)):
-    """Get time series data for all keywords in the user's comparison list."""
+@router.get("/public-data")
+def get_public_comparison_data(keywords: str = "", period: int = 30):
+    """Get comparison data for a comma-separated list of keywords. No auth required."""
+    kw_list = [k.strip().lower() for k in keywords.split(",") if k.strip()]
+    return _build_series(kw_list, period)
+
+
+def _build_series(keywords: list, period: int) -> dict:
+    from datetime import datetime, timedelta, timezone
     conn = get_connection()
-
-    rows = conn.execute(
-        "SELECT keyword FROM user_comparisons WHERE user_email = ? ORDER BY added_at ASC",
-        (user,),
-    ).fetchall()
-    keywords = [r["keyword"] for r in rows]
-
-    if not keywords:
-        conn.close()
-        return {"keywords": [], "series": []}
-
     start = (datetime.now(timezone.utc) - timedelta(days=period)).isoformat()
     series = []
-
     for kw in keywords:
-        # Search volume time series — one point per day
         volume_rows = conn.execute(
             "SELECT AVG(value) as value, DATE(recorded_at) as recorded_at FROM trend_data "
             "WHERE keyword = ? AND source = 'google_trends' AND metric = 'search_volume' "
             "AND recorded_at >= ? GROUP BY DATE(recorded_at) ORDER BY recorded_at ASC",
             (kw, start),
         ).fetchall()
-
-        # Score matching the selected period; fall back to nearest available period
         score_row = conn.execute(
             "SELECT composite_score, volume_growth, price_growth, lifecycle_stage "
             "FROM trend_scores WHERE keyword = ? AND period_days = ? "
@@ -139,22 +130,18 @@ def get_comparison_data(period: int = 30, user: str = Depends(get_current_user))
             (kw, period),
         ).fetchone()
         if not score_row:
-            # Fall back to any available score for this keyword
             score_row = conn.execute(
                 "SELECT composite_score, volume_growth, price_growth, lifecycle_stage "
                 "FROM trend_scores WHERE keyword = ? "
                 "ORDER BY ABS(period_days - ?) ASC, computed_at DESC LIMIT 1",
                 (kw, period),
             ).fetchone()
-
-        # Latest avg price (any source)
         price_row = conn.execute(
             "SELECT value FROM trend_data "
             "WHERE keyword = ? AND source IN ('ebay','poshmark','depop','etsy') AND metric = 'avg_price' "
             "ORDER BY recorded_at DESC LIMIT 1",
             (kw,),
         ).fetchone()
-
         series.append({
             "keyword": kw,
             "volume": [{"date": r["recorded_at"], "value": r["value"]} for r in volume_rows],
@@ -164,6 +151,20 @@ def get_comparison_data(period: int = 30, user: str = Depends(get_current_user))
             "lifecycle_stage": score_row["lifecycle_stage"] if score_row else None,
             "avg_price": price_row["value"] if price_row else None,
         })
-
     conn.close()
     return {"keywords": keywords, "series": series}
+
+
+@router.get("/data")
+def get_comparison_data(period: int = 30, user: str = Depends(get_current_user)):
+    """Get time series data for all keywords in the user's comparison list."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT keyword FROM user_comparisons WHERE user_email = ? ORDER BY added_at ASC",
+        (user,),
+    ).fetchall()
+    keywords = [r["keyword"] for r in rows]
+    conn.close()
+    if not keywords:
+        return {"keywords": [], "series": []}
+    return _build_series(keywords, period)

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { CardCarousel, TREND_SLIDES, VINTAGE_SLIDES, HomeImageCarousel } from './HomePage'
 import './LandingPage.css'
@@ -8,6 +9,7 @@ const PREVIEW_KEYWORDS = ['vintage denim', '1950s dress', 'leather jacket', 'wra
 
 export default function LandingPage() {
   const { login, register } = useAuth()
+  const navigate = useNavigate()
   const [isRegister, setIsRegister] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -59,7 +61,7 @@ export default function LandingPage() {
     <div className="lp-root">
       <div className="lp-hero">
         <div className="lp-logo-wrap">
-          <img src="/resale-rat-logo.png" alt="Resale Rat" className="lp-logo" />
+          <img src="/ratatat-logo.jpg" alt="ratadat" className="lp-logo" />
         </div>
         <p className="lp-subtitle">Detect and predict fashion resale trend cycles</p>
 
@@ -113,7 +115,7 @@ export default function LandingPage() {
         <p className="lp-preview-label">What's inside</p>
         <p className="lp-preview-sub">Two tools to help you source smarter, price confidently, and list faster.</p>
         <div className="lp-cards">
-          <div className="lp-card">
+          <div className="lp-card lp-card--clickable" onClick={() => navigate('/dashboard', { state: { mode: 'dashboard' } })}>
             <div className="lp-card-title">Trend Forecast</div>
             <p className="lp-card-desc">
               Track resale search demand across eBay, Etsy, Poshmark, and Depop in real time.
@@ -122,8 +124,9 @@ export default function LandingPage() {
             </p>
             <CardCarousel slides={TREND_SLIDES} />
           {trendImages.length > 0 && <HomeImageCarousel items={trendImages} />}
+            <div className="lp-card-cta">Try free — no account needed →</div>
           </div>
-          <div className="lp-card">
+          <div className="lp-card lp-card--clickable" onClick={() => navigate('/dashboard', { state: { mode: 'classify' } })}>
             <div className="lp-card-title">Vintage</div>
             <p className="lp-card-desc">
               <strong>Classify</strong> any vintage garment by its era using descriptors or photos.
@@ -132,6 +135,7 @@ export default function LandingPage() {
             </p>
             <CardCarousel slides={VINTAGE_SLIDES} />
           {eraImages.length > 0 && <HomeImageCarousel items={eraImages} />}
+            <div className="lp-card-cta">Try free — no account needed →</div>
           </div>
         </div>
       </div>

@@ -12,7 +12,7 @@ import './VintageExplorer.css'
 const findBlock = (eraId) => ERA_BLOCKS.find(b => b.ids.includes(eraId)) || null
 
 export default function VintageExplorer({ onGoHome, onSwitchToDashboard, onSwitchToClassify, initialEraId }) {
-  const { logout } = useAuth()
+  const { logout, isAuthenticated, openSignIn } = useAuth()
   const stellaRef = useRef(null)
   const [eras, setEras] = useState([])
   const [selectedEra, setSelectedEra] = useState(null)
@@ -44,13 +44,14 @@ export default function VintageExplorer({ onGoHome, onSwitchToDashboard, onSwitc
   }, [])
 
   const handleTrackKeyword = useCallback(async (kw) => {
+    if (!isAuthenticated) { openSignIn('Sign in to track keywords on Trend Forecast'); return }
     if (trackedKeywords.has(kw)) return
     try {
       await api.post(`/trends/keywords/${encodeURIComponent(kw)}/track`)
       setTrackedKeywords(prev => new Set([...prev, kw]))
       showToast(`Now tracking "${kw}" on Trend Forecast`)
     } catch {}
-  }, [trackedKeywords, showToast])
+  }, [isAuthenticated, openSignIn, trackedKeywords, showToast])
 
   // Fetch era list on mount; pre-select initialEraId if provided
   useEffect(() => {
@@ -103,18 +104,24 @@ export default function VintageExplorer({ onGoHome, onSwitchToDashboard, onSwitc
       <header className="vintage-header">
         <div className="vintage-header-left">
           <div className="nav-logo-wrap" onClick={onGoHome}>
-            <img src="/resale-rat-logo.png" alt="Resale Rat" className="nav-logo" />
+            <img src="/ratatat-logo.jpg" alt="ratadat" className="nav-logo" />
           </div>
           <div className="nav-toggle">
             <button className="nav-toggle-btn" onClick={onSwitchToDashboard}>
               Trend Forecast
+              {isAuthenticated && trackedKeywords.size > 0 && (
+                <span className="nav-toggle-badge">{trackedKeywords.size}</span>
+              )}
             </button>
             <button className="nav-toggle-btn active">
               Vintage
             </button>
           </div>
         </div>
-        <button className="logout-btn" onClick={logout}>Sign Out</button>
+        {isAuthenticated
+          ? <button className="logout-btn" onClick={logout}>Sign Out</button>
+          : <button className="logout-btn" onClick={openSignIn}>Sign In</button>
+        }
       </header>
 
       <div className="vintage-tabs">

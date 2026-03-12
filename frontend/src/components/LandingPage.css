@@ -211,3 +211,19 @@
   color: #888;
   font-weight: 600;
 }
+
+.lp-card--clickable {
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.lp-card--clickable:hover {
+  border-color: rgba(255,255,255,0.15);
+  transform: translateY(-2px);
+}
+.lp-card-cta {
+  margin-top: 0.9rem;
+  font-size: 0.8rem;
+  color: #c9a96e;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}

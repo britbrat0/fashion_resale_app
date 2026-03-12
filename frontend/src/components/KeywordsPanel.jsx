@@ -22,9 +22,6 @@ export default function KeywordsPanel({ compareKeywords = [], onCompare, period 
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
   const [removing, setRemoving] = useState(null)
-  const [addValue, setAddValue] = useState('')
-  const [adding, setAdding] = useState(false)
-  const [addError, setAddError] = useState('')
   const [expandedKeyword, setExpandedKeyword] = useState(null)
 
   useEffect(() => {
@@ -65,27 +62,6 @@ export default function KeywordsPanel({ compareKeywords = [], onCompare, period 
     }
   }
 
-  const handleAdd = async (e) => {
-    e.preventDefault()
-    const kw = addValue.toLowerCase().trim()
-    if (!kw) return
-    if (keywords.find(k => k.keyword === kw)) {
-      setAddError(`"${kw}" is already tracked`)
-      return
-    }
-    setAdding(true)
-    setAddError('')
-    try {
-      await api.get('/trends/search', { params: { keyword: kw, period: 7 } })
-      await fetchKeywords()
-      setAddValue('')
-    } catch {
-      setAddError('Failed to add keyword')
-    } finally {
-      setAdding(false)
-    }
-  }
-
   const seedCount = keywords.filter(k => k.source === 'seed').length
   const userCount = keywords.filter(k => k.source !== 'seed').length
 
@@ -115,26 +91,7 @@ export default function KeywordsPanel({ compareKeywords = [], onCompare, period 
           value={filter}
           onChange={e => setFilter(e.target.value)}
         />
-        <form className="keywords-panel__add-form" onSubmit={handleAdd}>
-          <input
-            type="text"
-            className="keywords-panel__add-input"
-            placeholder="Add keyword to track..."
-            value={addValue}
-            onChange={e => { setAddValue(e.target.value); setAddError('') }}
-            disabled={adding}
-          />
-          <button
-            type="submit"
-            className="keywords-panel__add-btn"
-            disabled={adding || !addValue.trim()}
-          >
-            {adding ? 'Scraping...' : '+ Track'}
-          </button>
-        </form>
       </div>
-
-      {addError && <p className="keywords-panel__error">{addError}</p>}
 
       {loading && <p className="keywords-panel__status">Loading keywords...</p>}
 

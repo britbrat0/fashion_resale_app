@@ -290,20 +290,22 @@ export function HomeImageCarousel({ items }) {
 }
 
 export default function HomePage({ onGoToDashboard, onGoToVintage }) {
-  const { logout } = useAuth()
+  const { logout, isAuthenticated, openSignIn } = useAuth()
   const [trendImages, setTrendImages] = useState([])
   const [eraImages, setEraImages] = useState([])
 
   useEffect(() => {
-    // Fetch images for top 4 trends (past 7 days)
-    api.get('/trends/top', { params: { period: 7 } })
+    // Fetch images only for seed keywords
+    api.get('/trends/keywords/list')
       .then(res => {
-        const top4 = (res.data.trends || []).slice(0, 4)
+        const seeds = (res.data.keywords || [])
+          .filter(k => k.source === 'seed')
+          .slice(0, 4)
         return Promise.all(
-          top4.map(t =>
-            api.get(`/trends/${encodeURIComponent(t.keyword)}/images`)
-              .then(r => ({ label: t.keyword, imgUrl: (r.data.images || [])[0]?.image_url || null }))
-              .catch(() => ({ label: t.keyword, imgUrl: null }))
+          seeds.map(k =>
+            api.get(`/trends/${encodeURIComponent(k.keyword)}/images`)
+              .then(r => ({ label: k.keyword, imgUrl: (r.data.images || [])[0]?.image_url || null }))
+              .catch(() => ({ label: k.keyword, imgUrl: null }))
           )
         )
       })
@@ -324,21 +326,16 @@ export default function HomePage({ onGoToDashboard, onGoToVintage }) {
 
   return (
     <div className="hp-root">
-      <header className="vintage-header">
-        <div className="vintage-header-left">
-          <div className="nav-logo-wrap">
-            <img src="/resale-rat-logo.png" alt="Resale Rat" className="nav-logo" />
-          </div>
-        </div>
-        <button className="logout-btn" onClick={logout}>Sign Out</button>
-      </header>
-
       <div className="hp-body">
         <div className="hp-hero">
-          <h2 className="hp-title">Welcome</h2>
+          <img src="/ratatat-logo-sq.jpg" alt="ratadat" className="hp-hero-logo" />
           <p className="hp-subtitle">
-            Two tools to help you source smarter, price confidently, and list faster.
+            Market insight and trend forecasting for secondhand and vintage fashion resellers. Two tools to help you source smarter, price confidently, and list faster.
           </p>
+          {isAuthenticated
+            ? <button className="logout-btn hp-hero-auth-btn" onClick={logout}>Sign Out</button>
+            : <button className="logout-btn hp-hero-auth-btn" onClick={openSignIn}>Sign In</button>
+          }
         </div>
 
         <div className="hp-cards">

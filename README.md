@@ -1,4 +1,4 @@
-# Resale Rat
+# ratadat
 
 A full-stack web application for detecting and predicting fashion resale trend cycles, and classifying vintage garments by era. Built with React, FastAPI, SQLite, and Claude AI.
 
@@ -11,6 +11,17 @@ A full-stack web application for detecting and predicting fashion resale trend c
 **Vintage** — Browse all 24 fashion eras (1700s–2000s) with style profiles, moodboard photos, and market pricing data. Classify any vintage garment by era using descriptor chips and/or uploaded photos, powered by Claude Sonnet 4.6's vision API.
 
 **Stella** — An in-app AI chatbot (Claude Haiku) that interprets trend data, explains lifecycle stages, and answers fashion sourcing questions in context.
+
+---
+
+## Guest Access
+
+All browsing features are available without an account. Guests can search trends, view the Top 10, browse the Vintage era explorer, run garment classifications, and use the Compare tool. Only two actions require sign-in:
+
+- Saving tracked keywords across sessions (Track tab)
+- Saving classify history across sessions (Classify tab)
+
+A persistent sign-in prompt appears on the Track, Compare, and Classify tabs for unauthenticated users.
 
 ---
 
@@ -113,7 +124,7 @@ cs667/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/        # React components
-│   │   ├── hooks/useAuth.jsx  # JWT auth context
+│   │   ├── hooks/useAuth.jsx  # JWT auth context + openSignIn(msg)
 │   │   └── services/api.js    # Axios + Bearer token interceptor
 │   ├── nginx.conf
 │   └── Dockerfile
@@ -121,6 +132,7 @@ cs667/
 │   ├── app/
 │   │   ├── auth/              # Register, login, JWT validation
 │   │   ├── trends/            # Trend scoring, keyword management, sourcing
+│   │   ├── compare/           # Comparison list (auth) + public-data endpoint (guest)
 │   │   ├── chat/              # Stella chatbot (Claude Haiku)
 │   │   ├── vintage/           # Era browser, garment classifier (Claude Sonnet)
 │   │   ├── scrapers/          # One module per data source

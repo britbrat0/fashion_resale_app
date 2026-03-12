@@ -1,0 +1,123 @@
+.sim-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(3px);
+}
+
+.sim-card {
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 380px;
+  position: relative;
+}
+
+.sim-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: #555;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+}
+.sim-close:hover { color: #aaa; }
+
+.sim-message {
+  font-size: 0.88rem;
+  color: #e8e8e8;
+  font-weight: 600;
+  text-align: center;
+  margin: 0 0 1.25rem;
+  padding: 0.6rem 0.75rem;
+  background: rgba(240, 168, 184, 0.08);
+  border: 1px solid rgba(240, 168, 184, 0.2);
+  border-radius: 6px;
+}
+
+.sim-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sim-tab {
+  background: none;
+  border: none;
+  color: #555;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem 0.75rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.sim-tab.active {
+  color: #f0a8b8;
+  border-bottom-color: #f0a8b8;
+}
+
+.sim-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sim-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sim-field label {
+  font-size: 0.78rem;
+  color: #888;
+  font-weight: 500;
+}
+
+.sim-field input {
+  background: #1e1e1e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #e8e8e8;
+  font-size: 0.88rem;
+  padding: 0.6rem 0.75rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.sim-field input:focus { border-color: rgba(255, 255, 255, 0.25); }
+
+.sim-error {
+  font-size: 0.8rem;
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.08);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+}
+
+.sim-submit {
+  background: #f0a8b8;
+  color: #111;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.7rem;
+  cursor: pointer;
+  margin-top: 0.25rem;
+  transition: opacity 0.15s;
+}
+.sim-submit:hover:not(:disabled) { opacity: 0.9; }
+.sim-submit:disabled { opacity: 0.5; cursor: not-allowed; }

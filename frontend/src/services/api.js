@@ -13,13 +13,13 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Redirect to login on 401
+// On 401: if user had a token, clear it and notify auth context via event
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && localStorage.getItem('token')) {
       localStorage.removeItem('token')
-      window.location.href = '/'
+      window.dispatchEvent(new CustomEvent('auth:token-expired'))
     }
     return Promise.reject(error)
   }

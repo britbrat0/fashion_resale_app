@@ -122,7 +122,7 @@ def _ensure_keyword_tracked(keyword: str):
 
 
 @router.get("/top")
-def top_trends(period: int = 7, user: str = Depends(get_current_user)):
+def top_trends(period: int = 7):
     """Get top 10 emerging trends for a given time period."""
     trends = get_top_trends(period_days=period, limit=10)
     return {
@@ -132,7 +132,7 @@ def top_trends(period: int = 7, user: str = Depends(get_current_user)):
 
 
 @router.get("/similar")
-def check_similar(keyword: str, user: str = Depends(get_current_user)):
+def check_similar(keyword: str):
     """Check if a keyword is similar to an already-tracked keyword using word-overlap matching.
     Returns { similar: <keyword> } or { similar: null }. Does not modify the DB.
     No Claude call — uses deterministic word-set containment:
@@ -177,7 +177,7 @@ def check_similar(keyword: str, user: str = Depends(get_current_user)):
 
 
 @router.get("/search")
-def search_trend(keyword: str, period: int = 7, background_tasks: BackgroundTasks = None, user: str = Depends(get_current_user)):
+def search_trend(keyword: str, period: int = 7, background_tasks: BackgroundTasks = None):
     """Search a custom keyword. Triggers on-demand scrape if no fresh data."""
     keyword = _normalize(keyword)
     keyword = _ensure_keyword_tracked(keyword)
@@ -199,7 +199,7 @@ def search_trend(keyword: str, period: int = 7, background_tasks: BackgroundTask
 
 
 @router.get("/ranking-forecast")
-def ranking_forecast(period: int = 7, user: str = Depends(get_current_user)):
+def ranking_forecast(period: int = 7):
     """Project 7-day rank changes for all tracked trends.
 
     Returns:
@@ -402,21 +402,21 @@ def trend_images(keyword: str):
 
 
 @router.get("/{keyword}/details")
-def trend_details(keyword: str, period: int = 7, user: str = Depends(get_current_user)):
+def trend_details(keyword: str, period: int = 7):
     """Get full trend detail for a specific keyword."""
     details = get_keyword_details(_normalize(keyword), period_days=period)
     return details
 
 
 @router.get("/{keyword}/seasonal")
-def trend_seasonal(keyword: str, user: str = Depends(get_current_user)):
+def trend_seasonal(keyword: str):
     """Get seasonal search_volume pattern by month-of-year for a keyword."""
     from app.trends.seasonal import get_seasonal_pattern
     return {"keyword": _normalize(keyword), "seasonal": get_seasonal_pattern(_normalize(keyword))}
 
 
 @router.get("/{keyword}/correlations")
-def trend_correlations(keyword: str, period: int = 30, top: int = 5, user: str = Depends(get_current_user)):
+def trend_correlations(keyword: str, period: int = 30, top: int = 5):
     """Get keywords most correlated with this keyword's search_volume trend."""
     from app.trends.correlation import get_keyword_correlations
     return {
@@ -427,14 +427,14 @@ def trend_correlations(keyword: str, period: int = 30, top: int = 5, user: str =
 
 
 @router.get("/{keyword}/forecast")
-def trend_forecast(keyword: str, horizon: int = 14, user: str = Depends(get_current_user)):
+def trend_forecast(keyword: str, horizon: int = 14):
     """Forecast future search volume for a keyword using polynomial regression."""
     from app.forecasting.model import forecast_search_volume
     return forecast_search_volume(_normalize(keyword), horizon_days=horizon)
 
 
 @router.get("/{keyword}/regions")
-def trend_regions(keyword: str, scope: str = "us", user: str = Depends(get_current_user)):
+def trend_regions(keyword: str, scope: str = "us"):
     """Get region heatmap data for a keyword. scope: 'us' or 'global'."""
     keyword = _normalize(keyword)
     conn = get_connection()
@@ -455,7 +455,7 @@ def trend_regions(keyword: str, scope: str = "us", user: str = Depends(get_curre
 
 
 @router.get("/keywords/list")
-def list_keywords(user: str = Depends(get_current_user)):
+def list_keywords():
     """List all tracked keywords and their status."""
     conn = get_connection()
     rows = conn.execute(
@@ -509,7 +509,7 @@ def remove_keyword(keyword: str, user: str = Depends(get_current_user)):
 
 
 @router.get("/keywords/{keyword}/sourcing")
-def keyword_sourcing(keyword: str, user: str = Depends(get_current_user)):
+def keyword_sourcing(keyword: str):
     """Return AI-generated 'Top Garments to Source' suggestions for a tracked keyword."""
     import json
     from app.config import settings

@@ -95,6 +95,28 @@
   color: #ccc;
 }
 
+.nav-toggle-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.nav-toggle-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #f0a8b8;
+  color: #111;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .logout-btn {
   padding: 0.5rem 1rem;
   background: rgba(255, 255, 255, 0.08);

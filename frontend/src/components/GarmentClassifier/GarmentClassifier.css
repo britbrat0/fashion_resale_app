@@ -1228,3 +1228,10 @@
   from { opacity: 0; transform: translateX(-50%) translateY(8px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
+
+.gc-guest-notice {
+  margin-bottom: 0.75rem;
+}
+.gc-guest-signin-btn {
+  width: 100%;
+}

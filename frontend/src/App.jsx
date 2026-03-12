@@ -1,24 +1,15 @@
 import { useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
-import LandingPage from './components/LandingPage'
+import SignInModal from './components/SignInModal'
 import HomePage from './components/HomePage'
 import Dashboard from './components/Dashboard'
 import VintageExplorer from './components/VintageExplorer/VintageExplorer'
 import GarmentClassifier from './components/GarmentClassifier/GarmentClassifier'
 
-function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useAuth()
-  return isAuthenticated ? children : <Navigate to="/" replace />
-}
-
-function PublicRoute({ children }) {
-  const { isAuthenticated } = useAuth()
-  return isAuthenticated ? <Navigate to="/dashboard" replace /> : children
-}
-
 function AppShell() {
-  const [mode, setMode] = useState('home')
+  const location = useLocation()
+  const [mode, setMode] = useState(location.state?.mode || 'home')
   const [initialEraId, setInitialEraId] = useState(null)
 
   const goHome = () => setMode('home')
@@ -57,27 +48,23 @@ function AppShell() {
   return <Dashboard onGoHome={goHome} onSwitchToVintage={() => { setInitialEraId(null); setMode('classify') }} />
 }
 
+function AppWithModal() {
+  const { signInOpen, signInMessage, closeSignIn } = useAuth()
+  return (
+    <>
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<AppShell />} />
+      </Routes>
+      {signInOpen && <SignInModal onClose={closeSignIn} message={signInMessage} />}
+    </>
+  )
+}
+
 export default function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <PublicRoute>
-              <LandingPage />
-            </PublicRoute>
-          }
-        />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <AppShell />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+      <AppWithModal />
     </AuthProvider>
   )
 }

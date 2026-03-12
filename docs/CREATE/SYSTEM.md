@@ -1,4 +1,4 @@
-# SYSTEM.md — Resale Rat
+# SYSTEM.md — ratadat
 
 ## 1. Overview
 
@@ -50,18 +50,20 @@ flowchart TD
 
 ### 3.2 App Routing
 
+All views are accessible without an account. Sign-in is only required to persist tracked keywords and classify history across sessions.
+
 ```mermaid
 flowchart TD
-    Root["/"] -->|not authenticated| Landing["LandingPage\n• Sign In / Create Account\n• Preview carousels\n• Moodboard image carousels"]
-    Root -->|authenticated| Shell["AppShell\n(protected route → /dashboard)"]
+    Root["/"] -->|guest or authenticated| Home["HomePage\n• Logo + subtitle\n• Nav cards to Trend Forecast / Vintage\n• Live trend + era image carousels\n• Sign In button"]
 
-    Shell -->|mode: home| Home["HomePage\n• Nav cards to Trend / Vintage\n• Live image carousels"]
-    Shell -->|mode: dashboard| Dashboard["Dashboard\n• Top 10 Trends\n• Keyword search\n• Compare panel\n• Ranking Forecast\n• Stella Chatbot"]
-    Shell -->|mode: classify| Classify["GarmentClassifier\n• Descriptor chips\n• Image upload (up to 10)\n• Claude era classification\n• Market data + Etsy listings"]
-    Shell -->|mode: vintage| Vintage["VintageExplorer\n• 24-era browser\n• Era moodboard images\n• Style profile + market data\n• Top garments to source"]
-
+    Home -->|Trend Forecast| Dashboard["Dashboard\n• Top 10 Trends tab\n• Track tab (session-only for guests)\n• Compare tab (session-only for guests)\n• Keyword search\n• Ranking Forecast\n• Stella Chatbot"]
+    Home -->|Vintage| Vintage["VintageExplorer\n• 24-era browser\n• Era moodboard images\n• Style profile + market data\n• Top garments to source\n• Classify button"]
+    Vintage -->|Classify| Classify["GarmentClassifier\n• Descriptor chips\n• Image upload (up to 10)\n• Claude era classification\n• Market data + Etsy listings\n• History (session-only for guests)"]
     Classify -->|Explore this era| Vintage
-    Vintage -->|Classify button| Classify
+
+    Dashboard -->|search from Track tab| SearchTrack["Search Results\nBack → Tracked Keywords"]
+    Dashboard -->|search from Compare tab| SearchCompare["Search Results\nBack → Compare · keyword auto-added"]
+    Dashboard -->|search from Top 10 tab| SearchTop["Search Results\nBack → Top Trends"]
 ```
 
 ### 3.3 Component Tree
@@ -78,7 +80,8 @@ src/
 │   ├── TrendMoodboard.jsx/css       # Image grid for a trend keyword
 │   ├── RankingForecast.jsx/css      # Top 10 + challengers panel
 │   ├── CompareSection.jsx/css       # Side-by-side keyword comparison
-│   ├── KeywordsPanel.jsx/css        # Add / remove tracked keywords
+│   ├── SignInModal.jsx/css           # Sign-in modal with optional context message
+│   ├── KeywordsPanel.jsx/css        # Filter + view tracked keywords
 │   ├── ChatBot.jsx/css              # Stella AI chatbot overlay
 │   ├── LifecycleBadge.jsx/css       # Emerging / Peak / Decline badge
 │   ├── RegionHeatmap.jsx/css        # US state + global choropleth map
@@ -188,7 +191,8 @@ backend/
 - **Storage**: `data/users.csv` via pandas — columns: `email`, `hashed_password`, `created_at`
 - **Hashing**: bcrypt via passlib
 - **Tokens**: JWT (HS256), `python-jose`, 24-hour expiry
-- **Dependency**: `get_current_user` FastAPI dependency injected on all protected routes
+- **Dependency**: `get_current_user` FastAPI dependency injected on protected routes only
+- **Guest access**: Read-only endpoints (`/trends/top`, `/trends/search`, `/trends/keywords/list`, `/trends/keywords/{kw}/sourcing`, `/compare/public-data`) require no auth
 - **Seed keywords** are `source='seed'` and cannot be deleted (returns 403)
 
 ### 4.4 Database Schema
@@ -376,40 +380,50 @@ sequenceDiagram
 | POST | `/api/auth/register` | Create account, returns JWT |
 | POST | `/api/auth/login` | Validate credentials, returns JWT |
 
-### Trends (auth required unless noted)
+### Trends
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/trends/top` | Top trends by composite score. `?period=7\|14\|30\|60\|90` |
-| GET | `/api/trends/search` | Search a keyword; triggers on-demand scrape if stale. `?keyword=&period=` |
-| GET | `/api/trends/ranking-forecast` | Top 10 + challengers forecast. `?period=7` |
-| GET | `/api/trends/keywords/list` | All tracked keywords |
-| POST | `/api/trends/keywords/{keyword}/track` | Add keyword to tracking |
-| DELETE | `/api/trends/keywords/{keyword}` | Remove keyword (seed keywords return 403) |
-| GET | `/api/trends/{keyword}/details` | Full time-series detail. `?period=` |
-| GET | `/api/trends/{keyword}/seasonal` | Seasonal breakdown |
-| GET | `/api/trends/{keyword}/images` | Product images — **public, no auth required** |
-| GET | `/api/trends/keywords/{keyword}/sourcing` | AI-generated garments to source (Claude) |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/trends/top` | No | Top trends by composite score. `?period=7\|14\|30\|60\|90` |
+| GET | `/api/trends/search` | No | Search a keyword; triggers on-demand scrape if stale. `?keyword=&period=` |
+| GET | `/api/trends/ranking-forecast` | Yes | Top 10 + challengers forecast. `?period=7` |
+| GET | `/api/trends/keywords/list` | No | All tracked keywords |
+| POST | `/api/trends/keywords/{keyword}/track` | Yes | Add keyword to tracking |
+| DELETE | `/api/trends/keywords/{keyword}` | Yes | Remove keyword (seed keywords return 403) |
+| GET | `/api/trends/{keyword}/details` | Yes | Full time-series detail. `?period=` |
+| GET | `/api/trends/{keyword}/seasonal` | Yes | Seasonal breakdown |
+| GET | `/api/trends/{keyword}/images` | No | Product images |
+| GET | `/api/trends/keywords/{keyword}/sourcing` | No | AI-generated garments to source (Claude) |
+
+### Compare
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/compare` | Yes | Get saved comparison keywords for current user |
+| POST | `/api/compare/{keyword}` | Yes | Add keyword to comparison list |
+| DELETE | `/api/compare/{keyword}` | Yes | Remove keyword from comparison list |
+| GET | `/api/compare/data` | Yes | Time-series data for saved keywords. `?period=` |
+| GET | `/api/compare/public-data` | No | Time-series data for arbitrary keywords. `?keywords=a,b,c&period=` |
 
 ### Chat — Stella (auth required)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/chat` | Send message, receive Stella's reply |
-| GET | `/api/chat/history` | Full message history for current user |
-| DELETE | `/api/chat/history` | Clear history for current user |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/chat` | Yes | Send message, receive Stella's reply |
+| GET | `/api/chat/history` | Yes | Full message history for current user |
+| DELETE | `/api/chat/history` | Yes | Clear history for current user |
 
-### Vintage (auth required unless noted)
+### Vintage
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/vintage/eras` | List all 24 eras (id, label, period) |
-| GET | `/api/vintage/eras/{era_id}` | Full era detail (strips `image_search_terms`) |
-| GET | `/api/vintage/eras/{era_id}/images` | Era moodboard images — **public, no auth required** |
-| GET | `/api/vintage/eras/{era_id}/market` | Market pricing data for an era |
-| GET | `/api/vintage/descriptor-options` | Chip options for the classifier (aggregated from all eras) |
-| POST | `/api/vintage/classify` | Classify garment via Claude Sonnet 4.6 (multipart/form-data) |
-| GET | `/api/vintage/etsy-listings` | Etsy listing search. `?q=` |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/vintage/eras` | No | List all 24 eras (id, label, period) |
+| GET | `/api/vintage/eras/{era_id}` | No | Full era detail (strips `image_search_terms`) |
+| GET | `/api/vintage/eras/{era_id}/images` | No | Era moodboard images |
+| GET | `/api/vintage/eras/{era_id}/market` | No | Market pricing data for an era |
+| GET | `/api/vintage/descriptor-options` | No | Chip options for the classifier (aggregated from all eras) |
+| POST | `/api/vintage/classify` | No | Classify garment via Claude Sonnet 4.6 (multipart/form-data) |
+| GET | `/api/vintage/etsy-listings` | No | Etsy listing search. `?q=` |
 
 ---
 
@@ -488,3 +502,7 @@ docker exec -w /app cs667-backend-1 python -m pytest tests/ -v
 | **Claude Sonnet for classifier, Haiku for chat** | Sonnet has better vision/reasoning accuracy; Haiku is faster and cheaper for conversational turns |
 | **`phash` deduplication for images** | Perceptual hashing removes visually similar images from the moodboard regardless of different URLs |
 | **Sourcing always visible (no toggle)** | Sourcing data loads immediately on keyword selection; no user action required |
+| **Guest access via public endpoints** | Read-only endpoints require no auth; write/personal endpoints (track, compare list, chat history) remain auth-gated |
+| **`openSignIn(msg)` with optional message** | Sign-in modal accepts a context string (e.g. "Sign in to track keywords"); guarded against DOM events being passed as the argument |
+| **Context-aware search back button** | `searchOriginView` state tracks which tab triggered the search; back button label and destination change accordingly. Searching from Compare auto-adds the keyword to the comparison list |
+| **Single search bar for tracking** | "Add keyword to track" input removed from Track tab; searching any keyword via the main search bar automatically adds it to tracked keywords |

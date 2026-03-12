@@ -9,7 +9,7 @@ import ChatBot from './ChatBot'
 import './Dashboard.css'
 
 export default function Dashboard({ onGoHome, onSwitchToVintage }) {
-  const { logout } = useAuth()
+  const { logout, isAuthenticated, openSignIn } = useAuth()
   const [period, setPeriod] = useState(7)
   const [searchQuery, setSearchQuery] = useState('')
   const [trends, setTrends] = useState([])
@@ -27,6 +27,7 @@ export default function Dashboard({ onGoHome, onSwitchToVintage }) {
   const [challengers, setChallengers] = useState([])
   const [compareSeries, setCompareSeries] = useState([])
   const [trackFocusKeyword, setTrackFocusKeyword] = useState(null)
+  const [searchOriginView, setSearchOriginView] = useState('top')
 
   const SCRAPE_STEPS = [
     'Checking Google Trends data...',
@@ -81,6 +82,8 @@ export default function Dashboard({ onGoHome, onSwitchToVintage }) {
     const kw = searchQuery.trim().toLowerCase()
     if (!kw) return
     setSearchLoading(true)
+    setSearchOriginView(view)
+    if (view === 'compare') handleCompare(kw)
     setView('search')
     setExpandedKeyword(null)
     setSimilarSuggestion(null)
@@ -116,12 +119,18 @@ export default function Dashboard({ onGoHome, onSwitchToVintage }) {
   }
 
   const handleBackToTop = () => {
-    setView('top')
+    setView(searchOriginView || 'top')
     setSearchResult(null)
     setSearchQuery('')
     setSimilarSuggestion(null)
     setExpandedKeyword(null)
   }
+
+  const backBtnLabel = searchOriginView === 'keywords'
+    ? 'Back to Tracked Keywords'
+    : searchOriginView === 'compare'
+    ? 'Back to Compare'
+    : 'Back to Top Trends'
 
   const handleCorrelationClick = (kw) => {
     const kwLower = kw.toLowerCase().trim()
@@ -156,12 +165,15 @@ export default function Dashboard({ onGoHome, onSwitchToVintage }) {
     const kw = keyword.toLowerCase().trim()
     const isInCompare = compareKeywords.includes(kw)
 
-    // Optimistically update UI immediately
+    // Update local state for everyone (guests keep in-memory, auth users persist)
     if (isInCompare) {
       setCompareKeywords(prev => prev.filter(k => k !== kw))
     } else {
       setCompareKeywords(prev => [...prev, kw])
     }
+
+    // Persist to backend only for authenticated users
+    if (!isAuthenticated) return
 
     try {
       if (isInCompare) {
@@ -196,14 +208,17 @@ export default function Dashboard({ onGoHome, onSwitchToVintage }) {
       <header className="vintage-header">
         <div className="vintage-header-left">
           <div className="nav-logo-wrap" onClick={onGoHome}>
-            <img src="/resale-rat-logo.png" alt="Resale Rat" className="nav-logo" />
+            <img src="/ratatat-logo.jpg" alt="ratadat" className="nav-logo" />
           </div>
           <div className="nav-toggle">
             <button className="nav-toggle-btn active">Trend Forecast</button>
             <button className="nav-toggle-btn" onClick={onSwitchToVintage}>Vintage</button>
           </div>
         </div>
-        <button onClick={logout} className="logout-btn">Sign Out</button>
+        {isAuthenticated
+          ? <button onClick={logout} className="logout-btn">Sign Out</button>
+          : <button onClick={openSignIn} className="logout-btn">Sign In</button>
+        }
       </header>
 
       <div className="vintage-tabs">
@@ -231,6 +246,15 @@ export default function Dashboard({ onGoHome, onSwitchToVintage }) {
       </div>
 
       <main className="dashboard-content">
+        {(view === 'compare' || view === 'keywords') && !isAuthenticated && (
+          <div className="guest-notice">
+            <span>{view === 'compare' ? 'Your comparison is session-only.' : 'Tracked keywords are session-only.'}</span>
+            <button className="guest-notice__btn" onClick={openSignIn} type="button">
+              Sign in to save →
+            </button>
+          </div>
+        )}
+
         <div className="controls-bar">
           <form onSubmit={handleSearch} className="search-form">
             <input
@@ -265,7 +289,7 @@ export default function Dashboard({ onGoHome, onSwitchToVintage }) {
                 Search Results: <span className="search-keyword">{searchResult?.keyword || searchQuery}</span>
               </h2>
               <button onClick={handleBackToTop} className="back-btn">
-                Back to Top Trends
+                {backBtnLabel}
               </button>
             </div>
 

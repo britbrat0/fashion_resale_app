@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import api from '../services/api'
+import { useAuth } from '../hooks/useAuth'
 import CompareChart from './Charts/CompareChart'
 import LifecycleBadge from './LifecycleBadge'
 import './CompareSection.css'
@@ -8,15 +9,27 @@ const COLORS = ['#cc3333', '#7c3aed', '#db2777', '#0891b2', '#b45309', '#0f766e'
 const MAX_COMPARE = 6
 
 export default function CompareSection({ compareKeywords, onKeywordsChange, onSeriesChange, period = 30 }) {
+  const { isAuthenticated } = useAuth()
   const [compareData, setCompareData] = useState({ keywords: [], series: [] })
   const [inputValue, setInputValue] = useState('')
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState('')
+  // Track last fetched keyword string to avoid re-fetching on same data
+  const lastGuestKeywordsRef = useRef(null)
 
   useEffect(() => {
-    fetchCompareData()
-  }, [period])
+    if (isAuthenticated) {
+      fetchCompareData()
+      return
+    }
+    // For guests: include period in the cache key so period changes trigger a re-fetch
+    const kwStr = (compareKeywords || []).slice().sort().join(',')
+    const cacheKey = `${kwStr}::${period}`
+    if (cacheKey === lastGuestKeywordsRef.current) return
+    lastGuestKeywordsRef.current = cacheKey
+    fetchGuestCompareData()
+  }, [period, isAuthenticated, compareKeywords])
 
   const fetchCompareData = async () => {
     setLoading(true)
@@ -27,6 +40,30 @@ export default function CompareSection({ compareKeywords, onKeywordsChange, onSe
       if (onSeriesChange) onSeriesChange(res.data.series || [])
     } catch {
       setCompareData({ keywords: [], series: [] })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchGuestCompareData = async () => {
+    if (!compareKeywords || compareKeywords.length === 0) {
+      setCompareData({ keywords: [], series: [] })
+      if (onSeriesChange) onSeriesChange([])
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await api.get('/compare/public-data', {
+        params: { keywords: compareKeywords.join(','), period },
+      })
+      // Use compareKeywords (prop) as authoritative list — don't call onKeywordsChange
+      // to avoid triggering an infinite re-fetch loop
+      const data = { keywords: compareKeywords, series: res.data.series || [] }
+      setCompareData(data)
+      if (onSeriesChange) onSeriesChange(data.series)
+    } catch {
+      setCompareData({ keywords: compareKeywords, series: [] })
     } finally {
       setLoading(false)
     }

@@ -48,8 +48,8 @@ const STATIC_OPTIONS = {
 }
 
 const MAX_IMAGES = 10
-const HISTORY_KEY = 'gc_history'
 const MAX_HISTORY = 20
+const getHistoryKey = (email) => email ? `gc_history_${email}` : 'gc_history_guest'
 
 const LIFECYCLE_CONFIG = {
   'Emerging':     { label: 'Emerging',    color: '#4fc3f7', bg: 'rgba(79,195,247,0.1)'  },
@@ -107,17 +107,17 @@ function relativeTime(ts) {
   return new Date(ts).toLocaleDateString()
 }
 
-function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') }
+function loadHistory(key) {
+  try { return JSON.parse(localStorage.getItem(key) || '[]') }
   catch { return [] }
 }
 
-function saveHistory(entries) {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(entries))
+function saveHistory(key, entries) {
+  localStorage.setItem(key, JSON.stringify(entries))
 }
 
 export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwitchToVintage, onExploreEra }) {
-  const { logout } = useAuth()
+  const { logout, isAuthenticated, email, openSignIn } = useAuth()
   const stellaRef = useRef(null)
 
   // Descriptor chip state
@@ -182,7 +182,7 @@ export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwi
     api.get('/vintage/descriptor-options')
       .then(res => setOptions({ ...res.data, ...STATIC_OPTIONS }))
       .catch(() => setOptions(STATIC_OPTIONS))
-    setHistory(loadHistory())
+    setHistory(loadHistory(getHistoryKey(email)))
     api.get('/trends/keywords/list')
       .then(res => setTrackedKeywords(new Set((res.data.keywords || []).map(k => k.keyword))))
       .catch(() => {})
@@ -247,6 +247,7 @@ export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwi
   }
 
   const handleTrackKeyword = async (kw) => {
+    if (!isAuthenticated) { openSignIn('Sign in to track keywords on Trend Forecast'); return }
     if (trackedKeywords.has(kw) || trackingSet.has(kw)) return
     setTrackingSet(prev => new Set([...prev, kw]))
     try {
@@ -352,8 +353,8 @@ export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwi
         }
       } catch {}
 
-      // Background: collect Etsy validation samples for this era (fire and forget)
-      if (primaryEraId) {
+      // Background: collect Etsy validation samples for this era (fire and forget, auth required)
+      if (primaryEraId && isAuthenticated) {
         api.post(`/vintage/validation/collect-era?era_id=${encodeURIComponent(primaryEraId)}&target=5`)
           .catch(() => {})
       }
@@ -376,7 +377,7 @@ export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwi
       }
       const updated = [entry, ...history].slice(0, MAX_HISTORY)
       setHistory(updated)
-      saveHistory(updated)
+      saveHistory(getHistoryKey(email), updated)
       setResultSource('classify')
     } catch (err) {
       setError(err.response?.data?.detail || 'Classification failed. Please try again.')
@@ -388,12 +389,12 @@ export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwi
   const deleteHistoryEntry = (id) => {
     const updated = history.filter(e => e.id !== id)
     setHistory(updated)
-    saveHistory(updated)
+    saveHistory(getHistoryKey(email), updated)
   }
 
   const clearHistory = () => {
     setHistory([])
-    saveHistory([])
+    saveHistory(getHistoryKey(email), [])
   }
 
   // Scroll to top whenever loading starts or a result appears
@@ -411,14 +412,22 @@ export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwi
       <header className="vintage-header">
         <div className="vintage-header-left">
           <div className="nav-logo-wrap" onClick={onGoHome}>
-            <img src="/resale-rat-logo.png" alt="Resale Rat" className="nav-logo" />
+            <img src="/ratatat-logo.jpg" alt="ratadat" className="nav-logo" />
           </div>
           <div className="nav-toggle">
-            <button className="nav-toggle-btn" onClick={onSwitchToDashboard}>Trend Forecast</button>
+            <button className="nav-toggle-btn" onClick={onSwitchToDashboard}>
+              Trend Forecast
+              {isAuthenticated && trackedKeywords.size > 0 && (
+                <span className="nav-toggle-badge">{trackedKeywords.size}</span>
+              )}
+            </button>
             <button className="nav-toggle-btn active">Vintage</button>
           </div>
         </div>
-        <button className="logout-btn" onClick={logout}>Sign Out</button>
+        {isAuthenticated
+          ? <button className="logout-btn" onClick={logout}>Sign Out</button>
+          : <button className="logout-btn" onClick={openSignIn}>Sign In</button>
+        }
       </header>
 
       <div className="vintage-tabs">
@@ -616,6 +625,13 @@ export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwi
             <div className="gc-results-loading">
               <div className="gc-spinner-lg" />
               <p>Analyzing garment…</p>
+            </div>
+          )}
+
+          {result && !isAuthenticated && (
+            <div className="guest-notice">
+              <span>Results are session-only.</span>
+              <button className="guest-notice__btn" onClick={openSignIn} type="button">Sign in to save →</button>
             </div>
           )}
 
@@ -849,6 +865,12 @@ export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwi
           {/* ── History ── */}
           {!result && history.length > 0 && (
             <div className="gc-history">
+              {!isAuthenticated && (
+                <div className="guest-notice">
+                  <span>History is session-only.</span>
+                  <button className="guest-notice__btn" onClick={openSignIn} type="button">Sign in to save →</button>
+                </div>
+              )}
               <div className="gc-history-header">
                 <span className="gc-history-title">History</span>
                 <button

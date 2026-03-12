@@ -72,7 +72,7 @@ def _query_era_images(era_id: str) -> list[dict]:
 
 
 @router.get("/eras")
-def list_eras(user: str = Depends(get_current_user)):
+def list_eras():
     """Return summary list of all 24 eras (id, label, period, start_year, end_year)."""
     summary = [
         {
@@ -133,7 +133,7 @@ def _clean_chip(val: str) -> str:
 
 
 @router.get("/descriptor-options")
-def descriptor_options(user: str = Depends(get_current_user)):
+def descriptor_options():
     """Return aggregated unique values across all eras for each descriptor category."""
     categories = ("fabrics", "prints", "silhouettes", "brands", "colors", "aesthetics", "key_garments")
     result = {cat: set() for cat in categories}
@@ -146,7 +146,6 @@ def descriptor_options(user: str = Depends(get_current_user)):
 
 @router.post("/classify")
 async def classify(
-    user: str = Depends(get_current_user),
     fabrics: str = Form(default="[]"),
     prints: str = Form(default="[]"),
     silhouettes: str = Form(default="[]"),
@@ -244,14 +243,14 @@ def validation_collect_era(era_id: str, target: int = 5, user: str = Depends(get
 
 
 @router.get("/etsy-listings")
-def etsy_listings(q: str, user: str = Depends(get_current_user)):
+def etsy_listings(q: str):
     """Search Etsy for active vintage listings matching a keyword."""
     from app.vintage.validation import search_etsy_listings
     return {"query": q, "listings": search_etsy_listings(q, limit=6)}
 
 
 @router.get("/eras/{era_id}/market")
-def era_market(era_id: str, user: str = Depends(get_current_user)):
+def era_market(era_id: str):
     """Return full market data for an era.
 
     Returns:
@@ -387,15 +386,8 @@ def era_market(era_id: str, user: str = Depends(get_current_user)):
     }
 
 
-@router.get("/etsy-listings")
-def etsy_listings(q: str, user: str = Depends(get_current_user)):
-    """Search Etsy for active vintage listings matching a keyword."""
-    from app.vintage.validation import search_etsy_listings
-    return {"query": q, "listings": search_etsy_listings(q, limit=6)}
-
-
 @router.get("/eras/{era_id}")
-def era_detail(era_id: str, user: str = Depends(get_current_user)):
+def era_detail(era_id: str):
     """Return full era details (all fields except image_search_terms)."""
     if era_id not in _ERA_BY_ID:
         raise HTTPException(status_code=404, detail=f"Era '{era_id}' not found")
