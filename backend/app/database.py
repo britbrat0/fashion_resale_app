@@ -64,6 +64,16 @@ def init_db():
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_keywords (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_email TEXT NOT NULL,
+            keyword TEXT NOT NULL,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_email, keyword)
+        )
+    """)
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS user_comparisons (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_email TEXT NOT NULL,
@@ -99,6 +109,12 @@ def init_db():
         )
     """)
 
+    # Migration: add listing_growth column to trend_scores for supply/demand scoring
+    try:
+        cursor.execute("ALTER TABLE trend_scores ADD COLUMN listing_growth REAL DEFAULT 0.0")
+    except Exception:
+        pass  # column already exists
+
     # Migration: add phash column to trend_images for perceptual deduplication
     try:
         cursor.execute("ALTER TABLE trend_images ADD COLUMN phash TEXT")
@@ -120,6 +136,19 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_trend_scores_keyword ON trend_scores(keyword)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_keywords_status ON keywords(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_trend_images_keyword ON trend_images(keyword)")
+
+    # ── Etsy keyword tags ─────────────────────────────────────────────────────
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS keyword_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            keyword TEXT NOT NULL,
+            tag TEXT NOT NULL,
+            frequency INTEGER NOT NULL DEFAULT 1,
+            scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(keyword, tag)
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_keyword_tags_keyword ON keyword_tags(keyword)")
 
     # ── Classifier validation dataset ─────────────────────────────────────────
     cursor.execute("""

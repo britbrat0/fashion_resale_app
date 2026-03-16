@@ -177,16 +177,32 @@ export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwi
   // History
   const [history, setHistory] = useState([])
 
-  // Load descriptor options, history, and tracked keywords on mount
+  // Load descriptor options once on mount
   useEffect(() => {
     api.get('/vintage/descriptor-options')
       .then(res => setOptions({ ...res.data, ...STATIC_OPTIONS }))
       .catch(() => setOptions(STATIC_OPTIONS))
-    setHistory(loadHistory(getHistoryKey(email)))
-    api.get('/trends/keywords/list')
-      .then(res => setTrackedKeywords(new Set((res.data.keywords || []).map(k => k.keyword))))
-      .catch(() => {})
   }, [])
+
+  // Reload history and tracked keywords whenever auth state changes
+  useEffect(() => {
+    // History is only persisted for authenticated users; clear it on sign-out
+    setHistory(isAuthenticated ? loadHistory(getHistoryKey(email)) : [])
+    api.get('/trends/keywords/list')
+      .then(res => {
+        const kws = res.data.keywords || []
+        const kwSet = new Set(kws.map(k => k.keyword))
+        // For guests, also seed from sessionStorage so chips show correct ✓ state
+        if (!isAuthenticated) {
+          try {
+            JSON.parse(sessionStorage.getItem('guest_tracked_keywords') || '[]')
+              .forEach(kw => kwSet.add(kw))
+          } catch {}
+        }
+        setTrackedKeywords(kwSet)
+      })
+      .catch(() => {})
+  }, [isAuthenticated, email])
 
   const toggleChip = (category, value) => {
     setSelected(prev => {
@@ -247,7 +263,18 @@ export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwi
   }
 
   const handleTrackKeyword = async (kw) => {
-    if (!isAuthenticated) { openSignIn('Sign in to track keywords on Trend Forecast'); return }
+    if (!isAuthenticated) {
+      // Guest: save to sessionStorage for session-only tracking
+      try {
+        const existing = JSON.parse(sessionStorage.getItem('guest_tracked_keywords') || '[]')
+        if (!existing.includes(kw)) {
+          sessionStorage.setItem('guest_tracked_keywords', JSON.stringify([...existing, kw]))
+        }
+      } catch {}
+      setTrackedKeywords(prev => new Set([...prev, kw]))
+      showToast(`"${kw}" added to Trend Forecast (this session)`)
+      return
+    }
     if (trackedKeywords.has(kw) || trackingSet.has(kw)) return
     setTrackingSet(prev => new Set([...prev, kw]))
     try {
@@ -377,7 +404,7 @@ export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwi
       }
       const updated = [entry, ...history].slice(0, MAX_HISTORY)
       setHistory(updated)
-      saveHistory(getHistoryKey(email), updated)
+      if (isAuthenticated) saveHistory(getHistoryKey(email), updated)
       setResultSource('classify')
     } catch (err) {
       setError(err.response?.data?.detail || 'Classification failed. Please try again.')
@@ -389,12 +416,12 @@ export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwi
   const deleteHistoryEntry = (id) => {
     const updated = history.filter(e => e.id !== id)
     setHistory(updated)
-    saveHistory(getHistoryKey(email), updated)
+    if (isAuthenticated) saveHistory(getHistoryKey(email), updated)
   }
 
   const clearHistory = () => {
     setHistory([])
-    saveHistory(getHistoryKey(email), [])
+    if (isAuthenticated) saveHistory(getHistoryKey(email), [])
   }
 
   // Scroll to top whenever loading starts or a result appears
@@ -417,15 +444,12 @@ export default function GarmentClassifier({ onGoHome, onSwitchToDashboard, onSwi
           <div className="nav-toggle">
             <button className="nav-toggle-btn" onClick={onSwitchToDashboard}>
               Trend Forecast
-              {isAuthenticated && trackedKeywords.size > 0 && (
-                <span className="nav-toggle-badge">{trackedKeywords.size}</span>
-              )}
             </button>
             <button className="nav-toggle-btn active">Vintage</button>
           </div>
         </div>
         {isAuthenticated
-          ? <button className="logout-btn" onClick={logout}>Sign Out</button>
+          ? <button className="logout-btn" onClick={() => { logout(); onGoHome() }}>Sign Out</button>
           : <button className="logout-btn" onClick={openSignIn}>Sign In</button>
         }
       </header>

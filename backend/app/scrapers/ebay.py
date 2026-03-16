@@ -105,6 +105,7 @@ def scrape_ebay(keyword: str) -> bool:
             "limit": "50",
             "sort": "newlyListed",
             "filter": "buyingOptions:{FIXED_PRICE|AUCTION}",
+            "fieldgroups": "EXTENDED",
         }
 
         browse_url = EBAY_BROWSE_URL_SANDBOX if _is_sandbox() else EBAY_BROWSE_URL_PROD
@@ -132,7 +133,10 @@ def scrape_ebay(keyword: str) -> bool:
 
         prices = []
         titles = []
+        watch_counts = []
         images_to_store = []
+        tag_counts: dict[str, int] = {}
+
         for item in items:
             price_info = item.get("price", {})
             value = price_info.get("value")
@@ -152,6 +156,19 @@ def scrape_ebay(keyword: str) -> bool:
                 titles.append(title)
             if image_url and len(images_to_store) < 6:
                 images_to_store.append((keyword, "ebay", image_url, title, item_price, item_url))
+
+            watch = item.get("watchCount")
+            if watch is not None:
+                try:
+                    watch_counts.append(int(watch))
+                except (ValueError, TypeError):
+                    pass
+
+            # localizedAspects available with fieldgroups=EXTENDED
+            for aspect in item.get("localizedAspects", []):
+                tag = aspect.get("value", "").strip().lower()
+                if tag and len(tag) < 60:
+                    tag_counts[tag] = tag_counts.get(tag, 0) + 1
 
         if not prices:
             logger.warning(f"No parseable eBay prices for '{keyword}'")
@@ -176,12 +193,36 @@ def scrape_ebay(keyword: str) -> bool:
         )
         conn.execute(
             "INSERT INTO trend_data (keyword, source, metric, value, recorded_at) VALUES (?, ?, ?, ?, ?)",
-            (keyword, "ebay", "sold_count", float(listing_count), now),
+            (keyword, "ebay", "listing_count", float(listing_count), now),
         )
         conn.execute(
             "INSERT INTO trend_data (keyword, source, metric, value, recorded_at) VALUES (?, ?, ?, ?, ?)",
             (keyword, "ebay", "price_volatility", volatility, now),
         )
+
+        # Watch count (demand/interest signal)
+        if watch_counts:
+            conn.execute(
+                "INSERT INTO trend_data (keyword, source, metric, value, recorded_at) VALUES (?, ?, ?, ?, ?)",
+                (keyword, "ebay", "avg_watch_count", sum(watch_counts) / len(watch_counts), now),
+            )
+            conn.execute(
+                "INSERT INTO trend_data (keyword, source, metric, value, recorded_at) VALUES (?, ?, ?, ?, ?)",
+                (keyword, "ebay", "total_watch_count", float(sum(watch_counts)), now),
+            )
+
+        # Tags from localizedAspects (top 50 by frequency)
+        if tag_counts:
+            top_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:50]
+            for tag, freq in top_tags:
+                conn.execute(
+                    """INSERT INTO keyword_tags (keyword, tag, frequency, scraped_at)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(keyword, tag) DO UPDATE SET
+                           frequency = excluded.frequency,
+                           scraped_at = excluded.scraped_at""",
+                    (keyword, tag, freq, now),
+                )
 
         # Title sentiment
         if _sia and titles:
@@ -208,7 +249,11 @@ def scrape_ebay(keyword: str) -> bool:
         conn.commit()
         conn.close()
 
-        logger.info(f"eBay API scrape complete for '{keyword}': {listing_count} items, avg ${avg_price:.2f}")
+        watch_str = f"{sum(watch_counts)/len(watch_counts):.0f}" if watch_counts else "N/A"
+        logger.info(
+            f"eBay API scrape complete for '{keyword}': {listing_count} listings, "
+            f"avg ${avg_price:.2f}, avg watches {watch_str}, {len(tag_counts)} unique aspects"
+        )
 
         # Non-fatal: also fetch sold counts via Finding API
         try:

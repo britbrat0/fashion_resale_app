@@ -33,9 +33,7 @@ def compute_composite_score(keyword: str, period_days: int) -> dict:
     start = now - timedelta(days=period_days)
     midpoint = now - timedelta(days=period_days / 2)
 
-    # Volume growth: use daily-averaged search_volume only (Google Trends 0-100 relative scale).
-    # Marketplace metrics (sold_count, listing_count) and Reddit mention_count are on incompatible
-    # scales and sampling frequencies — including them distorts the growth calculation.
+    # Search volume growth (Google Trends 0-100 relative scale)
     vol_rows = conn.execute(
         "SELECT AVG(value) as value, DATE(recorded_at) as day FROM trend_data "
         "WHERE keyword = ? AND source = 'google_trends' AND metric = 'search_volume' "
@@ -45,27 +43,51 @@ def compute_composite_score(keyword: str, period_days: int) -> dict:
 
     first_half_volumes = [r["value"] for r in vol_rows if r["day"] + "T00:00:00" < midpoint.isoformat()]
     second_half_volumes = [r["value"] for r in vol_rows if r["day"] + "T00:00:00" >= midpoint.isoformat()]
-
     volume_growth = _get_growth_rate(first_half_volumes, second_half_volumes)
 
-    # Price metrics: avg_price from eBay + Etsy
+    # Social mention growth (Reddit) — supplementary demand signal
+    mention_rows = conn.execute(
+        "SELECT AVG(value) as value, DATE(recorded_at) as day FROM trend_data "
+        "WHERE keyword = ? AND source = 'reddit' AND metric = 'mention_count' "
+        "AND recorded_at >= ? GROUP BY DATE(recorded_at) ORDER BY day",
+        (keyword, start.isoformat()),
+    ).fetchall()
+    first_half_mentions = [r["value"] for r in mention_rows if r["day"] + "T00:00:00" < midpoint.isoformat()]
+    second_half_mentions = [r["value"] for r in mention_rows if r["day"] + "T00:00:00" >= midpoint.isoformat()]
+    mention_growth = _get_growth_rate(first_half_mentions, second_half_mentions)
+
+    # Blend search volume with Reddit mentions when enough data exists (80/20)
+    has_mention_data = len(mention_rows) >= 3
+    demand_growth = (0.8 * volume_growth + 0.2 * mention_growth) if has_mention_data else volume_growth
+
+    # Price growth: avg_price across all marketplaces
     price_rows = conn.execute(
         "SELECT value, recorded_at FROM trend_data WHERE keyword = ? AND source IN ('ebay', 'etsy', 'poshmark', 'depop') AND metric = 'avg_price' AND recorded_at >= ? ORDER BY recorded_at",
         (keyword, start.isoformat()),
     ).fetchall()
-
     first_half_prices = [r["value"] for r in price_rows if r["recorded_at"] < midpoint.isoformat()]
     second_half_prices = [r["value"] for r in price_rows if r["recorded_at"] >= midpoint.isoformat()]
     price_growth = _get_growth_rate(first_half_prices, second_half_prices)
 
-    composite_score = 0.6 * volume_growth + 0.4 * price_growth
+    # Listing supply growth: listing_count across all marketplaces (supply pressure signal)
+    listing_rows = conn.execute(
+        "SELECT AVG(value) as value, DATE(recorded_at) as day FROM trend_data "
+        "WHERE keyword = ? AND source IN ('ebay', 'etsy', 'poshmark', 'depop') AND metric = 'listing_count' "
+        "AND recorded_at >= ? GROUP BY DATE(recorded_at) ORDER BY day",
+        (keyword, start.isoformat()),
+    ).fetchall()
+    first_half_listings = [r["value"] for r in listing_rows if r["day"] + "T00:00:00" < midpoint.isoformat()]
+    second_half_listings = [r["value"] for r in listing_rows if r["day"] + "T00:00:00" >= midpoint.isoformat()]
+    listing_growth = _get_growth_rate(first_half_listings, second_half_listings)
+
+    composite_score = 0.6 * demand_growth + 0.4 * price_growth
 
     scale_row = conn.execute(
         "SELECT scale FROM keywords WHERE keyword = ?", (keyword,)
     ).fetchone()
     scale = (scale_row["scale"] if scale_row and scale_row["scale"] else "macro")
 
-    lifecycle_stage = _detect_lifecycle(keyword, volume_growth, composite_score, conn, start, scale)
+    lifecycle_stage = _detect_lifecycle(keyword, demand_growth, composite_score, conn, start, scale, listing_growth)
 
     conn.close()
 
@@ -74,14 +96,15 @@ def compute_composite_score(keyword: str, period_days: int) -> dict:
         "period_days": period_days,
         "volume_growth": round(volume_growth, 2),
         "price_growth": round(price_growth, 2),
+        "listing_growth": round(listing_growth, 2),
         "composite_score": round(composite_score, 2),
         "lifecycle_stage": lifecycle_stage,
         "scale": scale,
     }
 
 
-def _detect_lifecycle(keyword: str, volume_growth: float, composite_score: float, conn, start, scale: str = "macro") -> str:
-    """Determine lifecycle stage based on volume levels and growth trajectory.
+def _detect_lifecycle(keyword: str, volume_growth: float, composite_score: float, conn, start, scale: str = "macro", listing_growth: float = 0.0) -> str:
+    """Determine lifecycle stage based on volume levels, growth trajectory, and supply pressure.
     Scale-aware: micro trends use lower absolute volume thresholds."""
     volume_rows = conn.execute(
         "SELECT SUM(avg_val) as total FROM ("
@@ -101,6 +124,13 @@ def _detect_lifecycle(keyword: str, volume_growth: float, composite_score: float
     prev_score_values = [r["composite_score"] for r in prev_scores if r["composite_score"] is not None]
     acceleration = (composite_score - prev_score_values[0]) if len(prev_score_values) >= 2 else 0
 
+    # Supply pressure: listings growing significantly faster than demand (supply > demand signal)
+    # Only meaningful when we actually have listing data (listing_growth != 0)
+    supply_pressure = (
+        listing_growth > 5.0
+        and listing_growth > max(volume_growth, 0) * 1.5
+    )
+
     # Micro trends operate at much lower absolute volumes
     is_micro = scale == "micro"
     dormant_thresh = 2 if is_micro else 5
@@ -111,13 +141,16 @@ def _detect_lifecycle(keyword: str, volume_growth: float, composite_score: float
         return "Dormant"
     elif volume_growth > 30 and total_volume < emerging_vol_thresh:
         return "Emerging"
-    elif volume_growth > 20 and acceleration > 0:
+    elif volume_growth > 20 and acceleration > 0 and not supply_pressure:
         return "Accelerating"
     elif -5 <= volume_growth <= 10 and total_volume > peak_vol_thresh:
+        # Supply flooding the market can push a flat-volume trend into Saturation early
+        if supply_pressure and acceleration <= 0:
+            return "Saturation"
         if acceleration <= 0:
             return "Peak"
         return "Accelerating"
-    elif -20 <= volume_growth < -5:
+    elif -20 <= volume_growth < -5 or supply_pressure:
         return "Saturation"
     elif volume_growth < -20:
         return "Decline"
@@ -162,25 +195,45 @@ def compute_and_store_scores(keyword: str):
         )
 
         conn.execute(
-            "INSERT INTO trend_scores (keyword, period_days, volume_growth, price_growth, composite_score, lifecycle_stage, computed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (keyword, period, result["volume_growth"], result["price_growth"], result["composite_score"], result["lifecycle_stage"], now),
+            "INSERT INTO trend_scores (keyword, period_days, volume_growth, price_growth, listing_growth, composite_score, lifecycle_stage, computed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (keyword, period, result["volume_growth"], result["price_growth"], result["listing_growth"], result["composite_score"], result["lifecycle_stage"], now),
         )
 
     conn.commit()
     conn.close()
 
 
-def get_top_trends(period_days: int = 7, limit: int = 10) -> list[dict]:
+def get_top_trends(period_days: int = 7, limit: int = 10, user_email: str = None) -> list[dict]:
     """Get top N trends ranked by composite score for a given period.
-    Uses within-group percentile ranking so micro trends can surface alongside macro trends."""
+    Authenticated users see seed keywords + their own; guests see seed keywords only."""
     conn = get_connection()
-    rows = conn.execute(
-        "SELECT ts.keyword, ts.composite_score, ts.volume_growth, ts.price_growth, ts.lifecycle_stage, ts.computed_at, k.source, COALESCE(k.scale, 'macro') as scale "
-        "FROM trend_scores ts LEFT JOIN keywords k ON ts.keyword = k.keyword "
-        "WHERE ts.period_days = ? AND (k.status IS NULL OR k.status != 'inactive') "
-        "ORDER BY ts.composite_score DESC",
-        (period_days,),
-    ).fetchall()
+    if user_email:
+        rows = conn.execute(
+            """SELECT ts.keyword, ts.composite_score, ts.volume_growth, ts.price_growth,
+                      ts.lifecycle_stage, ts.computed_at, k.source, COALESCE(k.scale, 'macro') as scale
+               FROM trend_scores ts
+               LEFT JOIN keywords k ON ts.keyword = k.keyword
+               LEFT JOIN user_keywords uk ON ts.keyword = uk.keyword AND uk.user_email = ?
+               WHERE ts.period_days = ? AND (k.status IS NULL OR k.status != 'inactive')
+               AND (
+                   k.source = 'seed'
+                   OR uk.keyword IS NOT NULL
+                   OR (k.source = 'user_search'
+                       AND NOT EXISTS (SELECT 1 FROM user_keywords uk2 WHERE uk2.keyword = ts.keyword))
+               )
+               ORDER BY ts.composite_score DESC""",
+            (user_email, period_days),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """SELECT ts.keyword, ts.composite_score, ts.volume_growth, ts.price_growth,
+                      ts.lifecycle_stage, ts.computed_at, k.source, COALESCE(k.scale, 'macro') as scale
+               FROM trend_scores ts LEFT JOIN keywords k ON ts.keyword = k.keyword
+               WHERE ts.period_days = ? AND (k.status IS NULL OR k.status != 'inactive')
+               AND k.source = 'seed'
+               ORDER BY ts.composite_score DESC""",
+            (period_days,),
+        ).fetchall()
     conn.close()
 
     all_trends = [dict(r) for r in rows]
@@ -232,6 +285,19 @@ def get_keyword_details(keyword: str, period_days: int = 7) -> dict:
         "SELECT value, recorded_at FROM trend_data WHERE keyword = ? AND source = 'google_trends' AND metric = 'search_volume' AND recorded_at >= ? ORDER BY recorded_at",
         (keyword, start),
     ).fetchall()
+
+    # Fallback: if no data in the selected period, show whatever recent data exists
+    search_volume_stale = False
+    if not search_volume:
+        fallback_rows = conn.execute(
+            "SELECT value, recorded_at FROM trend_data "
+            "WHERE keyword = ? AND source = 'google_trends' AND metric = 'search_volume' "
+            "ORDER BY recorded_at DESC LIMIT 90",
+            (keyword,),
+        ).fetchall()
+        if fallback_rows:
+            search_volume = list(reversed(fallback_rows))
+            search_volume_stale = True
 
     # Avg price over time — one point per day, averaged across all marketplace sources
     ebay_prices = conn.execute(
@@ -343,6 +409,7 @@ def get_keyword_details(keyword: str, period_days: int = 7) -> dict:
         "period_days": period_days,
         "score": dict(score_row) if score_row else None,
         "search_volume": [{"value": r["value"], "date": r["recorded_at"]} for r in search_volume],
+        "search_volume_stale": search_volume_stale,
         "ebay_avg_price": [{"value": r["value"], "date": r["recorded_at"]} for r in ebay_prices],
         "sales_volume": [{"value": r["value"], "date": r["recorded_at"]} for r in sales_volume],
         "price_volatility": volatility_val,

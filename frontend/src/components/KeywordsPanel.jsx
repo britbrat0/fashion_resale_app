@@ -17,7 +17,7 @@ function timeAgo(dateStr) {
   return `${days}d ago`
 }
 
-export default function KeywordsPanel({ compareKeywords = [], onCompare, period = 7, focusKeyword = null, onCorrelationClick }) {
+export default function KeywordsPanel({ compareKeywords = [], onCompare, period = 7, focusKeyword = null, onCorrelationClick, guestKeywords = [], onRemoveGuestKeyword }) {
   const [keywords, setKeywords] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
@@ -51,6 +51,12 @@ export default function KeywordsPanel({ compareKeywords = [], onCompare, period 
   }
 
   const handleRemove = async (keyword) => {
+    // Guest session keyword — remove from sessionStorage via callback
+    const isGuest = guestKeywords.includes(keyword)
+    if (isGuest) {
+      if (onRemoveGuestKeyword) onRemoveGuestKeyword(keyword)
+      return
+    }
     setRemoving(keyword)
     try {
       await api.delete(`/trends/keywords/${encodeURIComponent(keyword)}`)
@@ -62,10 +68,17 @@ export default function KeywordsPanel({ compareKeywords = [], onCompare, period 
     }
   }
 
-  const seedCount = keywords.filter(k => k.source === 'seed').length
-  const userCount = keywords.filter(k => k.source !== 'seed').length
+  // Merge API keywords with guest session keywords (deduplicated)
+  const apiKeywordSet = new Set(keywords.map(k => k.keyword))
+  const guestKwObjects = guestKeywords
+    .filter(kw => !apiKeywordSet.has(kw))
+    .map(kw => ({ keyword: kw, source: 'user_search', status: 'active', scale: null, added_at: null, last_searched_at: null }))
+  const allKeywords = [...guestKwObjects, ...keywords]
 
-  const filtered = keywords.filter(k =>
+  const seedCount = allKeywords.filter(k => k.source === 'seed').length
+  const userCount = allKeywords.filter(k => k.source !== 'seed').length
+
+  const filtered = allKeywords.filter(k =>
     k.keyword.toLowerCase().includes(filter.toLowerCase())
   )
 
@@ -75,7 +88,7 @@ export default function KeywordsPanel({ compareKeywords = [], onCompare, period 
         <div>
           <h2>Tracked Keywords</h2>
           <p className="keywords-panel__subtitle">
-            {keywords.length} total &nbsp;·&nbsp;
+            {allKeywords.length} total &nbsp;·&nbsp;
             <span className="kw-count kw-count--seed">{seedCount} seed</span>
             &nbsp;·&nbsp;
             <span className="kw-count kw-count--user">{userCount} user</span>

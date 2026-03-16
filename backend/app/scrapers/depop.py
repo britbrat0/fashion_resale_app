@@ -5,6 +5,12 @@ from datetime import datetime, timezone
 
 from app.database import get_connection
 
+try:
+    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+    _sia = SentimentIntensityAnalyzer()
+except ImportError:
+    _sia = None
+
 logger = logging.getLogger(__name__)
 
 DEPOP_SEARCH_URL = "https://www.depop.com/search/?q={keyword}&location=us"
@@ -71,6 +77,32 @@ def scrape_depop(keyword: str) -> bool:
                 }
             """)
 
+            # Extract titles for sentiment
+            titles = page.evaluate("""
+                () => {
+                    const titles = [];
+                    const els = document.querySelectorAll('[class*="productCardRoot"] [class*="title"], [class*="productCardRoot"] p');
+                    for (const el of els) {
+                        const t = el.textContent.trim();
+                        if (t.length > 4 && t.length < 120 && !t.startsWith('$')) titles.push(t);
+                    }
+                    return titles.slice(0, 100);
+                }
+            """)
+
+            # Extract hashtags/tags if present
+            raw_tags = page.evaluate("""
+                () => {
+                    const tags = [];
+                    const els = document.querySelectorAll('[class*="tag"], [class*="Tag"], [class*="hashtag"], [class*="category"]');
+                    for (const el of els) {
+                        const t = el.textContent.trim().toLowerCase().replace(/^#/, '');
+                        if (t.length > 1 && t.length < 50) tags.push(t);
+                    }
+                    return tags;
+                }
+            """)
+
             # Count product cards
             listing_count = page.evaluate("""
                 () => document.querySelectorAll('[class*="productCardRoot"]').length
@@ -98,6 +130,30 @@ def scrape_depop(keyword: str) -> bool:
                 conn.execute(
                     "INSERT INTO trend_data (keyword, source, metric, value, recorded_at) VALUES (?, ?, ?, ?, ?)",
                     (keyword, "depop", "price_volatility", volatility, now),
+                )
+
+        # Title sentiment
+        if _sia and titles:
+            avg_sentiment = sum(_sia.polarity_scores(t)["compound"] for t in titles) / len(titles)
+            conn.execute(
+                "INSERT INTO trend_data (keyword, source, metric, value, recorded_at) VALUES (?, ?, ?, ?, ?)",
+                (keyword, "depop", "sentiment_score", avg_sentiment, now),
+            )
+
+        # Tags
+        if raw_tags:
+            tag_counts: dict[str, int] = {}
+            for t in raw_tags:
+                tag_counts[t] = tag_counts.get(t, 0) + 1
+            top_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:30]
+            for tag, freq in top_tags:
+                conn.execute(
+                    """INSERT INTO keyword_tags (keyword, tag, frequency, scraped_at)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(keyword, tag) DO UPDATE SET
+                           frequency = excluded.frequency,
+                           scraped_at = excluded.scraped_at""",
+                    (keyword, tag, freq, now),
                 )
 
         conn.commit()

@@ -70,8 +70,8 @@ def add_to_comparison(keyword: str, user: str = Depends(get_current_user)):
     conn.commit()
     conn.close()
 
-    # Ensure keyword is tracked, then scrape if no fresh data
-    _ensure_keyword_tracked(keyword)
+    # Ensure keyword is tracked with user ownership, then scrape if no fresh data
+    _ensure_keyword_tracked(keyword, user_email=user)
     if not _has_fresh_data(keyword):
         thread = threading.Thread(target=scrape_single_keyword, args=(keyword,))
         thread.start()

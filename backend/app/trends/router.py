@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from fastapi.responses import JSONResponse
 
-from app.auth.service import get_current_user
+from app.auth.service import get_current_user, get_optional_user
 from app.database import get_connection
 from app.trends.service import get_top_trends, get_keyword_details, compute_composite_score, predict_stage_warning
 from app.scheduler.jobs import scrape_single_keyword
@@ -82,9 +82,9 @@ def _merge_keyword_data(source: str, target: str, conn):
     logger.info(f"Merged keyword '{source}' into '{target}'")
 
 
-def _ensure_keyword_tracked(keyword: str):
+def _ensure_keyword_tracked(keyword: str, user_email: str = None):
     """Add keyword to keywords table if not already present. Updates last_searched_at on each search.
-    Always tracks the keyword exactly as searched — no similarity redirects for user searches."""
+    If user_email is provided, also registers ownership in user_keywords."""
     conn = get_connection()
     now = datetime.now(timezone.utc).isoformat()
 
@@ -105,6 +105,12 @@ def _ensure_keyword_tracked(keyword: str):
         )
         needs_classification = True
 
+    if user_email:
+        conn.execute(
+            "INSERT OR IGNORE INTO user_keywords (user_email, keyword) VALUES (?, ?)",
+            (user_email, keyword),
+        )
+
     conn.commit()
     conn.close()
 
@@ -122,9 +128,9 @@ def _ensure_keyword_tracked(keyword: str):
 
 
 @router.get("/top")
-def top_trends(period: int = 7):
+def top_trends(period: int = 7, user: str = Depends(get_optional_user)):
     """Get top 10 emerging trends for a given time period."""
-    trends = get_top_trends(period_days=period, limit=10)
+    trends = get_top_trends(period_days=period, limit=10, user_email=user)
     return {
         "period_days": period,
         "trends": trends,
@@ -177,10 +183,10 @@ def check_similar(keyword: str):
 
 
 @router.get("/search")
-def search_trend(keyword: str, period: int = 7, background_tasks: BackgroundTasks = None):
+def search_trend(keyword: str, period: int = 7, background_tasks: BackgroundTasks = None, user: str = Depends(get_optional_user)):
     """Search a custom keyword. Triggers on-demand scrape if no fresh data."""
     keyword = _normalize(keyword)
-    keyword = _ensure_keyword_tracked(keyword)
+    keyword = _ensure_keyword_tracked(keyword, user_email=user)
 
     if not _has_fresh_data(keyword):
         thread = threading.Thread(target=scrape_single_keyword, args=(keyword,))
@@ -199,7 +205,7 @@ def search_trend(keyword: str, period: int = 7, background_tasks: BackgroundTask
 
 
 @router.get("/ranking-forecast")
-def ranking_forecast(period: int = 7):
+def ranking_forecast(period: int = 7, user: str = Depends(get_optional_user)):
     """Project 7-day rank changes for all tracked trends.
 
     Returns:
@@ -212,13 +218,32 @@ def ranking_forecast(period: int = 7):
     HORIZON = 7
 
     conn = get_connection()
-    rows = conn.execute(
-        "SELECT ts.keyword, ts.composite_score, ts.volume_growth, ts.price_growth, "
-        "ts.lifecycle_stage, COALESCE(k.scale, 'macro') as scale "
-        "FROM trend_scores ts LEFT JOIN keywords k ON ts.keyword = k.keyword "
-        "WHERE ts.period_days = ? AND (k.status IS NULL OR k.status != 'inactive')",
-        (period,),
-    ).fetchall()
+    if user:
+        rows = conn.execute(
+            """SELECT ts.keyword, ts.composite_score, ts.volume_growth, ts.price_growth,
+                      ts.lifecycle_stage, COALESCE(k.scale, 'macro') as scale
+               FROM trend_scores ts
+               LEFT JOIN keywords k ON ts.keyword = k.keyword
+               LEFT JOIN user_keywords uk ON ts.keyword = uk.keyword AND uk.user_email = ?
+               WHERE ts.period_days = ? AND (k.status IS NULL OR k.status != 'inactive')
+               AND (
+                   k.source = 'seed'
+                   OR uk.keyword IS NOT NULL
+                   OR (k.source = 'user_search'
+                       AND NOT EXISTS (SELECT 1 FROM user_keywords uk2 WHERE uk2.keyword = ts.keyword))
+               )""",
+            (user, period),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """SELECT ts.keyword, ts.composite_score, ts.volume_growth, ts.price_growth,
+                      ts.lifecycle_stage, COALESCE(k.scale, 'macro') as scale
+               FROM trend_scores ts
+               LEFT JOIN keywords k ON ts.keyword = k.keyword
+               WHERE ts.period_days = ? AND (k.status IS NULL OR k.status != 'inactive')
+               AND k.source = 'seed'""",
+            (period,),
+        ).fetchall()
     conn.close()
 
     all_kws = [dict(r) for r in rows]
@@ -279,9 +304,9 @@ def ranking_forecast(period: int = 7):
     # Top 10 by current rank
     top10 = sorted(all_kws, key=lambda k: k["current_rank"])[:10]
 
-    # Challengers: currently ranked 11+ with positive slope
-    challengers = [k for k in all_kws if k["current_rank"] > 10 and k["slope"] > 0]
-    challengers.sort(key=lambda k: k["slope"], reverse=True)
+    # Challengers: top 3 keywords currently ranked 11+, sorted by slope (rising first)
+    challengers = [k for k in all_kws if k["current_rank"] > 10]
+    challengers.sort(key=lambda k: (k["slope"], k["projected_composite"] or 0), reverse=True)
     challengers = challengers[:3]
 
     def _fmt(kw):
@@ -455,12 +480,30 @@ def trend_regions(keyword: str, scope: str = "us"):
 
 
 @router.get("/keywords/list")
-def list_keywords():
-    """List all tracked keywords and their status."""
+def list_keywords(user: str = Depends(get_optional_user)):
+    """List tracked keywords. Authenticated users see seed keywords + their own; guests see only seeds."""
     conn = get_connection()
-    rows = conn.execute(
-        "SELECT keyword, source, status, scale, added_at, last_searched_at FROM keywords WHERE status != 'inactive' ORDER BY added_at DESC"
-    ).fetchall()
+    if user:
+        rows = conn.execute(
+            """SELECT k.keyword, k.source, k.status, k.scale,
+                      COALESCE(uk.added_at, k.added_at) as added_at,
+                      k.last_searched_at
+               FROM keywords k
+               LEFT JOIN user_keywords uk ON k.keyword = uk.keyword AND uk.user_email = ?
+               WHERE k.status != 'inactive'
+               AND (
+                   k.source = 'seed'
+                   OR uk.keyword IS NOT NULL
+                   OR (k.source = 'user_search'
+                       AND NOT EXISTS (SELECT 1 FROM user_keywords uk2 WHERE uk2.keyword = k.keyword))
+               )
+               ORDER BY COALESCE(uk.added_at, k.added_at) DESC""",
+            (user,)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT keyword, source, status, scale, added_at, last_searched_at FROM keywords WHERE status != 'inactive' AND source = 'seed' ORDER BY added_at DESC"
+        ).fetchall()
     conn.close()
     return {"keywords": [dict(r) for r in rows]}
 
@@ -469,7 +512,7 @@ def list_keywords():
 def track_keyword(keyword: str, user: str = Depends(get_current_user)):
     """Add a keyword to tracking and kick off an immediate background scrape."""
     keyword = _normalize(keyword)
-    _ensure_keyword_tracked(keyword)
+    _ensure_keyword_tracked(keyword, user_email=user)
     threading.Thread(target=scrape_single_keyword, args=(keyword,), daemon=True).start()
     return {"keyword": keyword, "status": "tracking"}
 
@@ -486,7 +529,7 @@ def activate_keyword(keyword: str, user: str = Depends(get_current_user)):
 
 @router.delete("/keywords/{keyword}")
 def remove_keyword(keyword: str, user: str = Depends(get_current_user)):
-    """Deactivate a user-searched keyword. Seed keywords are protected."""
+    """Remove a user's ownership of a keyword. Seed keywords are protected."""
     keyword = _normalize(keyword)
     conn = get_connection()
 
@@ -502,7 +545,7 @@ def remove_keyword(keyword: str, user: str = Depends(get_current_user)):
         conn.close()
         raise HTTPException(status_code=403, detail="Seed keywords cannot be removed")
 
-    conn.execute("UPDATE keywords SET status = 'inactive' WHERE keyword = ?", (keyword,))
+    conn.execute("DELETE FROM user_keywords WHERE user_email = ? AND keyword = ?", (user, keyword))
     conn.commit()
     conn.close()
     return {"message": f"Keyword '{keyword}' removed"}

@@ -7,6 +7,12 @@ from datetime import datetime, timezone
 import requests
 from app.database import get_connection
 
+try:
+    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+    _sia = SentimentIntensityAnalyzer()
+except ImportError:
+    _sia = None
+
 logger = logging.getLogger(__name__)
 
 POSHMARK_SEARCH_URL = "https://poshmark.com/search"
@@ -50,6 +56,18 @@ def scrape_poshmark(keyword: str) -> bool:
             except (ValueError, TypeError):
                 continue
 
+        # Extract titles for sentiment analysis
+        title_matches = re.findall(r'"title"\s*:\s*"([^"]{5,120})"', html)
+        titles = list(dict.fromkeys(title_matches))[:100]  # deduplicate, cap at 100
+
+        # Extract brand names as tags
+        brand_matches = re.findall(r'"brand"\s*:\s*"([^"]{2,60})"', html)
+        tag_counts: dict[str, int] = {}
+        for brand in brand_matches:
+            b = brand.strip().lower()
+            if b and b not in ("other", "unknown", "n/a", ""):
+                tag_counts[b] = tag_counts.get(b, 0) + 1
+
         # Also count total listings found
         original_price_matches = re.findall(r'"original_price"\s*:\s*"(\d+)"', html)
         listing_count = max(len(prices), len(original_price_matches))
@@ -86,11 +104,32 @@ def scrape_poshmark(keyword: str) -> bool:
             (keyword, "poshmark", "listing_count", float(listing_count), now),
         )
 
+        # Title sentiment
+        if _sia and titles:
+            avg_sentiment = sum(_sia.polarity_scores(t)["compound"] for t in titles) / len(titles)
+            conn.execute(
+                "INSERT INTO trend_data (keyword, source, metric, value, recorded_at) VALUES (?, ?, ?, ?, ?)",
+                (keyword, "poshmark", "sentiment_score", avg_sentiment, now),
+            )
+
+        # Brand tags
+        if tag_counts:
+            top_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:30]
+            for tag, freq in top_tags:
+                conn.execute(
+                    """INSERT INTO keyword_tags (keyword, tag, frequency, scraped_at)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(keyword, tag) DO UPDATE SET
+                           frequency = excluded.frequency,
+                           scraped_at = excluded.scraped_at""",
+                    (keyword, tag, freq, now),
+                )
+
         conn.commit()
         conn.close()
 
         avg_str = f"${avg_price:.2f}" if prices else "N/A"
-        logger.info(f"Poshmark scrape complete for '{keyword}': {listing_count} listings, avg {avg_str}")
+        logger.info(f"Poshmark scrape complete for '{keyword}': {listing_count} listings, avg {avg_str}, {len(tag_counts)} brands")
         time.sleep(random.uniform(1.0, 2.5))
         return True
 

@@ -28,6 +28,10 @@ export default function Dashboard({ onGoHome, onSwitchToVintage }) {
   const [compareSeries, setCompareSeries] = useState([])
   const [trackFocusKeyword, setTrackFocusKeyword] = useState(null)
   const [searchOriginView, setSearchOriginView] = useState('top')
+  const [guestSessionKeywords, setGuestSessionKeywords] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('guest_tracked_keywords') || '[]') }
+    catch { return [] }
+  })
 
   const SCRAPE_STEPS = [
     'Checking Google Trends data...',
@@ -106,6 +110,7 @@ export default function Dashboard({ onGoHome, onSwitchToVintage }) {
   const doSearch = async (kw) => {
     setSearchLoading(true)
     setSimilarSuggestion(null)
+    if (!isAuthenticated) addGuestKeyword(kw)
     try {
       const res = await api.get('/trends/search', {
         params: { keyword: kw, period },
@@ -191,6 +196,23 @@ export default function Dashboard({ onGoHome, onSwitchToVintage }) {
     }
   }
 
+  // Clear guest session keywords on login
+  useEffect(() => {
+    if (isAuthenticated) {
+      setGuestSessionKeywords([])
+      sessionStorage.removeItem('guest_tracked_keywords')
+    }
+  }, [isAuthenticated])
+
+  const addGuestKeyword = (kw) => {
+    setGuestSessionKeywords(prev => {
+      if (prev.includes(kw)) return prev
+      const updated = [...prev, kw]
+      sessionStorage.setItem('guest_tracked_keywords', JSON.stringify(updated))
+      return updated
+    })
+  }
+
   // Sync compareKeywords and all tracked keywords from backend on mount
   useEffect(() => {
     api.get('/compare').then(res => {
@@ -216,7 +238,7 @@ export default function Dashboard({ onGoHome, onSwitchToVintage }) {
           </div>
         </div>
         {isAuthenticated
-          ? <button onClick={logout} className="logout-btn">Sign Out</button>
+          ? <button onClick={() => { logout(); onGoHome() }} className="logout-btn">Sign Out</button>
           : <button onClick={openSignIn} className="logout-btn">Sign In</button>
         }
       </header>
@@ -248,7 +270,7 @@ export default function Dashboard({ onGoHome, onSwitchToVintage }) {
       <main className="dashboard-content">
         {(view === 'compare' || view === 'keywords') && !isAuthenticated && (
           <div className="guest-notice">
-            <span>{view === 'compare' ? 'Your comparison is session-only.' : 'Tracked keywords are session-only.'}</span>
+            <span>{view === 'compare' ? 'Your comparison is session-only.' : 'Your tracked keywords are session-only.'}</span>
             <button className="guest-notice__btn" onClick={openSignIn} type="button">
               Sign in to save →
             </button>
@@ -350,6 +372,12 @@ export default function Dashboard({ onGoHome, onSwitchToVintage }) {
             period={period}
             focusKeyword={trackFocusKeyword}
             onCorrelationClick={handleCorrelationClick}
+            guestKeywords={!isAuthenticated ? guestSessionKeywords : []}
+            onRemoveGuestKeyword={(kw) => {
+              const updated = guestSessionKeywords.filter(k => k !== kw)
+              setGuestSessionKeywords(updated)
+              sessionStorage.setItem('guest_tracked_keywords', JSON.stringify(updated))
+            }}
           />
         ) : view === 'compare' ? (
           <div>

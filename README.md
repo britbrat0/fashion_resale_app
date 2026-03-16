@@ -1,39 +1,97 @@
-# Ratadat app
+<p align="center">
+  <img src="docs/logo.jpg" alt="ratadat logo" width="180" />
+</p>
 
-A full-stack web application for detecting and predicting fashion resale trend cycles, and classifying vintage garments by era. Built with React, FastAPI, SQLite, and Claude AI.
+<h1 align="center">ratadat</h1>
+
+<p align="center">
+  A full-stack web application for detecting and predicting fashion resale trend cycles, delivering actionable market insight for vintage and secondhand sellers, and classifying vintage garments by era. Built with React, FastAPI, SQLite, and Claude AI.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.11-blue" alt="Python 3.11" />
+  <img src="https://img.shields.io/badge/react-18-61DAFB" alt="React 18" />
+  <img src="https://img.shields.io/badge/fastapi-0.11x-009688" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/claude-sonnet%204.6-8B5CF6" alt="Claude Sonnet 4.6" />
+  <img src="https://img.shields.io/badge/docker-compose-2496ED" alt="Docker Compose" />
+  <img src="https://img.shields.io/badge/tests-88%20passing-brightgreen" alt="88 tests passing" />
+</p>
 
 ---
 
-## What It Does
+## Table of Contents
 
-**Trend Forecast** — Aggregates search demand, pricing, and social signals across Google Trends, eBay, Etsy, Poshmark, Reddit, and News. Computes composite trend scores, detects lifecycle stages (Emerging → Accelerating → Peak → Saturation → Decline → Dormant → Revival), forecasts 30-day rankings, and surfaces garments to source for each trending keyword.
+- [Overview](#overview)
+- [Features](#features)
+- [Guest Access](#guest-access)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Environment Variables](#environment-variables)
+- [Usage](#usage)
+- [Data Sources & Scheduling](#data-sources--scheduling)
+- [Running Tests](#running-tests)
+- [Project Structure](#project-structure)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
 
-**Vintage** — Browse all 24 fashion eras (1700s–2000s) with style profiles, moodboard photos, and market pricing data. Classify any vintage garment by era using descriptor chips and/or uploaded photos, powered by Claude Sonnet 4.6's vision API.
+---
 
-**Stella** — An in-app AI chatbot (Claude Haiku) that interprets trend data, explains lifecycle stages, and answers fashion sourcing questions in context.
+## Overview
+
+ratadat monitors fashion resale markets in real time — aggregating search demand, pricing, and social signals — and turns raw data into trend scores, lifecycle stage labels, 30-day forecasts, and sourcing recommendations. A second module lets users browse all 24 fashion eras and classify any vintage garment by era using text descriptors and/or uploaded photos, powered by Claude Sonnet 4.6's vision API.
+
+---
+
+## Features
+
+### Trend Forecast
+- **Top 10 Trends** — Ranked keywords by composite score, updated every 6 hours from live marketplace and social data
+- **Trend Lifecycle Detection** — Automatically labels each keyword's market stage: Emerging → Accelerating → Peak → Saturation → Decline → Dormant → Revival
+- **Market Insight** — Per-keyword breakdown: search volume over time, average resale price, sales velocity, price volatility, sell-through rate, and regional demand heatmaps (US states + global)
+- **Rising Challengers** — Keywords ranked 11+ with upward momentum, flagged for early sourcing opportunity
+- **30-Day Ranking Forecast** — AI-powered projection of where a keyword is headed
+- **Keyword Tracking** — Add any keyword to a personal tracked list; get an on-demand scrape immediately
+- **Compare Tool** — Side-by-side time-series comparison of up to 6 keywords
+- **Sourcing Cards** — Live eBay/Etsy/Poshmark listings pulled per keyword with images and price context
+- **Stella Chatbot** — In-app AI assistant (Claude Haiku 4.5) that interprets trend scores, explains lifecycle stages, and answers sourcing questions in context
+
+### Vintage
+- **Era Browser** — Style profiles, moodboard photos, and market pricing for all 24 eras from the 1700s through the 2000s
+- **Garment Classifier** — Upload up to 10 photos and/or select fabric, print, silhouette, and aesthetic descriptors; Claude Sonnet 4.6 returns a primary era match with confidence score, reasoning, matching features, and two alternate eras
 
 ---
 
 ## Guest Access
 
-All browsing features are available without an account. Guests can search trends, view the Top 10, browse the Vintage era explorer, run garment classifications, and use the Compare tool. Only two actions require sign-in:
+All browsing features are available without an account. Guests can:
 
-- Saving tracked keywords across sessions (Track tab)
-- Saving classify history across sessions (Classify tab)
+- Search trends and view the Top 10
+- Open per-keyword detail panels (volume chart, price, social signals, sourcing cards)
+- Use the Compare tool with any keywords
+- Browse the Vintage era explorer
+- Run garment classifications
 
-A persistent sign-in prompt appears on the Track, Compare, and Classify tabs for unauthenticated users.
+Two actions require sign-in:
+
+- **Track tab** — saving tracked keywords across sessions
+- **Classify tab** — saving classification history across sessions
+
+A persistent sign-in prompt is shown on the Track, Compare, and Classify tabs for unauthenticated users.
 
 ---
 
-## Stack
+## Tech Stack
 
-| Layer | Tech |
-|-------|------|
+| Layer | Technology |
+|-------|------------|
 | Frontend | React 18 + Vite, Recharts, plain CSS |
-| Backend | FastAPI (Python 3.11), APScheduler, SQLite |
+| Backend | FastAPI (Python 3.11), APScheduler |
+| Database | SQLite (WAL mode, persisted via Docker volume) |
 | Auth | JWT (python-jose) + bcrypt, CSV user store |
-| AI | Anthropic API — Claude Sonnet 4.6 (classifier) + Claude Haiku 4.5 (Stella) |
-| Deployment | Docker Compose (two containers: Nginx + FastAPI) |
+| AI | Anthropic API — Claude Sonnet 4.6 (classifier + forecasting) · Claude Haiku 4.5 (Stella chatbot) |
+| Deployment | Docker Compose — Nginx (frontend) + Uvicorn (backend) |
 
 ---
 
@@ -41,34 +99,41 @@ A persistent sign-in prompt appears on the Track, Compare, and Classify tabs for
 
 ### Prerequisites
 
-- Docker + Docker Compose
-- API keys (see Environment Variables below)
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- API keys for eBay, Etsy, and Anthropic (required); Reddit and Google optional
 
-### Run
+### Installation
 
 ```bash
-git clone <repo>
+git clone <repo-url>
 cd cs667
 
-# Copy and fill in your API keys
+# Copy the example env file and fill in your keys
 cp .env.example .env
 
+# Build and start both containers
 docker compose up --build
 ```
 
-App is available at **http://localhost**.
+The app will be available at **http://localhost**.
+
+To stop:
+
+```bash
+docker compose down
+```
 
 ### Environment Variables
 
-Set these in a `.env` file at the project root (or pass directly to Docker Compose):
+Create a `.env` file at the project root with the following:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `JWT_SECRET` | Yes | Secret key for signing JWT tokens |
-| `ANTHROPIC_API_KEY` | Yes | Powers the garment classifier + Stella chatbot |
-| `EBAY_APP_ID` | Yes | eBay Browse API — pricing data |
+| `ANTHROPIC_API_KEY` | Yes | Powers the garment classifier and Stella chatbot |
+| `EBAY_APP_ID` | Yes | eBay Browse API — pricing and listing data |
 | `EBAY_CERT_ID` | Yes | eBay OAuth credentials |
-| `ETSY_API_KEY` | Yes | Etsy v3 API — listing data |
+| `ETSY_API_KEY` | Yes | Etsy v3 API — listing and price data |
 | `REDDIT_CLIENT_ID` | Optional | Reddit mention tracking |
 | `REDDIT_CLIENT_SECRET` | Optional | Reddit mention tracking |
 | `PEXELS_API_KEY` | Optional | Fallback product images |
@@ -77,24 +142,34 @@ Set these in a `.env` file at the project root (or pass directly to Docker Compo
 
 ---
 
-## Data Sources
+## Usage
+
+1. **Open http://localhost** — the app loads with seed keyword data visible immediately (no account required)
+2. **Search a keyword** in the search bar to trigger an on-demand scrape and see its trend detail
+3. **Sign up** to save keywords to your personal Track list and retain classify history across sessions
+4. **Switch to Vintage** via the nav toggle to browse eras or run a garment classification
+5. **Use Compare** to add up to 6 keywords and view their volume and score side by side
+
+---
+
+## Data Sources & Scheduling
 
 | Source | Data Collected |
 |--------|----------------|
-| Google Trends | Search volume over time, US state + global region breakdowns |
+| Google Trends | Search volume over time, US state + global country breakdowns |
 | eBay Browse API | Average sold price, listing count |
 | Etsy API v3 | Average price, listing count |
 | Poshmark (HTML) | Listing count, prices |
 | Reddit JSON API | Mention count across 6 fashion subreddits |
 | Google News RSS | News mention count |
-| Pinterest | Moodboard images for era pages + keyword trend cards |
 
-Scraping runs on a background schedule via APScheduler:
+Background jobs run via APScheduler:
 
 | Job | Interval |
 |-----|----------|
 | Scrape all sources + compute scores | Every 6 hours |
-| Catchup Google Trends (fill missing data) | Every 6 hours, offset +2h |
+| Google Trends dedicated scrape | Every 8 hours (+5 min offset) |
+| Catchup Google Trends (fill gaps after rate-limit) | Every 8 hours (+3 hour offset) |
 | Auto-discover new keywords | Every 24 hours |
 | Expire stale user-added keywords | Every 24 hours |
 | Refine keyword scale classifications | Every 7 days |
@@ -106,14 +181,14 @@ Scraping runs on a background schedule via APScheduler:
 Tests live in `tests/` and run inside the backend container. All external API calls are mocked.
 
 ```bash
-# Install pytest (run once after each container rebuild)
+# Install pytest (once per container build)
 docker exec cs667-backend-1 pip install pytest
 
-# Run the full suite
+# Run the full test suite
 docker exec -w /app cs667-backend-1 python -m pytest tests/ -v
 ```
 
-**88 tests, 0 failures** across auth, chat, all scrapers, trends API, and vintage API.
+**88 tests, 0 failures** — covering auth, chat, all scrapers, trends API, and vintage API.
 
 ---
 
@@ -123,29 +198,31 @@ docker exec -w /app cs667-backend-1 python -m pytest tests/ -v
 cs667/
 ├── frontend/
 │   ├── src/
-│   │   ├── components/        # React components
+│   │   ├── components/        # React components (Dashboard, TrendDetail, VintageExplorer, GarmentClassifier, ...)
 │   │   ├── hooks/useAuth.jsx  # JWT auth context + openSignIn(msg)
-│   │   └── services/api.js    # Axios + Bearer token interceptor
+│   │   └── services/api.js    # Axios instance with Bearer token interceptor
 │   ├── nginx.conf
 │   └── Dockerfile
 ├── backend/
 │   ├── app/
 │   │   ├── auth/              # Register, login, JWT validation
-│   │   ├── trends/            # Trend scoring, keyword management, sourcing
+│   │   ├── trends/            # Trend scoring, keyword management, sourcing, forecasting
 │   │   ├── compare/           # Comparison list (auth) + public-data endpoint (guest)
-│   │   ├── chat/              # Stella chatbot (Claude Haiku)
-│   │   ├── vintage/           # Era browser, garment classifier (Claude Sonnet)
+│   │   ├── chat/              # Stella chatbot (Claude Haiku 4.5)
+│   │   ├── vintage/           # Era browser, garment classifier (Claude Sonnet 4.6)
 │   │   ├── scrapers/          # One module per data source
 │   │   ├── scheduler/         # APScheduler job definitions
-│   │   ├── database.py        # SQLite schema + connection helper
+│   │   ├── database.py        # SQLite schema + migrations + connection helper
 │   │   └── config.py          # Pydantic settings from env vars
 │   ├── data/                  # Persisted via Docker volume
 │   │   ├── trends.db
 │   │   ├── users.csv
 │   │   └── seed_keywords.json
 │   └── Dockerfile
-├── tests/                     # pytest suite (88 tests)
-├── docs/CREATE/SYSTEM.md      # Full system documentation
+├── tests/                     # pytest suite (88 tests, all external APIs mocked)
+├── docs/
+│   ├── CREATE/SYSTEM.md       # Full architecture documentation + Mermaid diagrams
+│   └── logo.jpg
 ├── docker-compose.yml
 └── README.md
 ```
@@ -155,3 +232,9 @@ cs667/
 ## Documentation
 
 Full architecture documentation — including Mermaid diagrams for the system architecture, data pipeline, database schema, frontend routing, and classifier sequence — is in [`docs/CREATE/SYSTEM.md`](docs/CREATE/SYSTEM.md).
+
+---
+
+## Contributing
+
+This project is a capstone academic project. Feedback and issues are welcome via GitHub Issues.

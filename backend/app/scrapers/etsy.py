@@ -54,6 +54,9 @@ def scrape_etsy(keyword: str) -> bool:
 
         prices = []
         quantities = []
+        views_list = []
+        tag_counts: dict[str, int] = {}
+
         for item in results:
             price_info = item.get("price", {})
             amount = price_info.get("amount")
@@ -64,7 +67,7 @@ def scrape_etsy(keyword: str) -> bool:
                     if 0 < price < 50000:
                         prices.append(price)
                 except (ValueError, TypeError, ZeroDivisionError):
-                    continue
+                    pass
 
             qty = item.get("quantity")
             if qty is not None:
@@ -72,6 +75,18 @@ def scrape_etsy(keyword: str) -> bool:
                     quantities.append(int(qty))
                 except (ValueError, TypeError):
                     pass
+
+            views = item.get("views")
+            if views is not None:
+                try:
+                    views_list.append(int(views))
+                except (ValueError, TypeError):
+                    pass
+
+            for tag in item.get("tags", []):
+                if isinstance(tag, str) and tag.strip():
+                    t = tag.strip().lower()
+                    tag_counts[t] = tag_counts.get(t, 0) + 1
 
         now = datetime.now(timezone.utc).isoformat()
         conn = get_connection()
@@ -95,25 +110,52 @@ def scrape_etsy(keyword: str) -> bool:
                 (keyword, "etsy", "price_volatility", volatility, now),
             )
 
-        # Store listing count (total from API, not just this page)
+        # Listing count (total from API, not just this page)
         conn.execute(
             "INSERT INTO trend_data (keyword, source, metric, value, recorded_at) VALUES (?, ?, ?, ?, ?)",
-            (keyword, "etsy", "sold_count", float(total_count), now),
+            (keyword, "etsy", "listing_count", float(total_count), now),
         )
 
-        # Store total available quantity
+        # Total available quantity across sampled listings
         if quantities:
-            total_qty = sum(quantities)
             conn.execute(
                 "INSERT INTO trend_data (keyword, source, metric, value, recorded_at) VALUES (?, ?, ?, ?, ?)",
-                (keyword, "etsy", "available_quantity", float(total_qty), now),
+                (keyword, "etsy", "available_quantity", float(sum(quantities)), now),
             )
+
+        # Views metrics
+        if views_list:
+            conn.execute(
+                "INSERT INTO trend_data (keyword, source, metric, value, recorded_at) VALUES (?, ?, ?, ?, ?)",
+                (keyword, "etsy", "avg_views", sum(views_list) / len(views_list), now),
+            )
+            conn.execute(
+                "INSERT INTO trend_data (keyword, source, metric, value, recorded_at) VALUES (?, ?, ?, ?, ?)",
+                (keyword, "etsy", "total_views", float(sum(views_list)), now),
+            )
+
+        # Tags — upsert frequency counts (top 50 by frequency)
+        if tag_counts:
+            top_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:50]
+            for tag, freq in top_tags:
+                conn.execute(
+                    """INSERT INTO keyword_tags (keyword, tag, frequency, scraped_at)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(keyword, tag) DO UPDATE SET
+                           frequency = excluded.frequency,
+                           scraped_at = excluded.scraped_at""",
+                    (keyword, tag, freq, now),
+                )
 
         conn.commit()
         conn.close()
 
         avg_str = f"${sum(prices)/len(prices):.2f}" if prices else "N/A"
-        logger.info(f"Etsy scrape complete for '{keyword}': {total_count} total listings, avg {avg_str}")
+        avg_views_str = f"{sum(views_list)/len(views_list):.0f}" if views_list else "N/A"
+        logger.info(
+            f"Etsy scrape complete for '{keyword}': {total_count} listings, "
+            f"avg price {avg_str}, avg views {avg_views_str}, {len(tag_counts)} unique tags"
+        )
         time.sleep(random.uniform(0.5, 1.5))
         return True
 

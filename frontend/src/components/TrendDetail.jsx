@@ -158,6 +158,11 @@ export default function TrendDetail({ keyword, period, inline = false, onSearch 
             <p className="forecast-error">{forecastError}</p>
           )}
 
+          {details.search_volume_stale && (
+            <p className="stale-data-notice">
+              ⚠ Google Trends data for this period is pending — showing most recent available data.
+            </p>
+          )}
           <VolumeChart
             data={details.search_volume}
             forecastData={showForecast && !forecastLoading && !forecastError ? forecastData : null}

@@ -36,7 +36,13 @@ export default function CompareSection({ compareKeywords, onKeywordsChange, onSe
     try {
       const res = await api.get('/compare/data', { params: { period } })
       setCompareData(res.data)
-      if (onKeywordsChange) onKeywordsChange(res.data.keywords || [])
+      const newKws = res.data.keywords || []
+      // Only notify parent if keywords actually changed — prevents infinite re-render loop
+      if (onKeywordsChange) {
+        const hasChanged = newKws.length !== (compareKeywords || []).length ||
+          newKws.some((k, i) => k !== (compareKeywords || [])[i])
+        if (hasChanged) onKeywordsChange(newKws)
+      }
       if (onSeriesChange) onSeriesChange(res.data.series || [])
     } catch {
       setCompareData({ keywords: [], series: [] })
@@ -83,9 +89,18 @@ export default function CompareSection({ compareKeywords, onKeywordsChange, onSe
 
     setAdding(true)
     setError('')
+
+    if (!isAuthenticated) {
+      // Guest: update parent state; fetchGuestCompareData will react to the prop change
+      if (onKeywordsChange) onKeywordsChange([...(compareKeywords || []), kw])
+      setInputValue('')
+      setAdding(false)
+      return
+    }
+
     try {
       await api.post(`/compare/${encodeURIComponent(kw)}`)
-      await fetchCompareData()  // fetchCompareData calls onKeywordsChange
+      await fetchCompareData()
       setInputValue('')
     } catch (e) {
       setError(e.response?.data?.detail || 'Failed to add keyword')
@@ -95,6 +110,15 @@ export default function CompareSection({ compareKeywords, onKeywordsChange, onSe
   }
 
   const handleRemove = async (keyword) => {
+    if (!isAuthenticated) {
+      const updated = {
+        keywords: compareData.keywords.filter(k => k !== keyword),
+        series: compareData.series.filter(s => s.keyword !== keyword),
+      }
+      setCompareData(updated)
+      if (onKeywordsChange) onKeywordsChange(updated.keywords)
+      return
+    }
     try {
       await api.delete(`/compare/${encodeURIComponent(keyword)}`)
       setCompareData(prev => {
@@ -111,6 +135,11 @@ export default function CompareSection({ compareKeywords, onKeywordsChange, onSe
   }
 
   const handleClear = async () => {
+    if (!isAuthenticated) {
+      setCompareData({ keywords: [], series: [] })
+      if (onKeywordsChange) onKeywordsChange([])
+      return
+    }
     try {
       await api.delete('/compare')
       setCompareData({ keywords: [], series: [] })

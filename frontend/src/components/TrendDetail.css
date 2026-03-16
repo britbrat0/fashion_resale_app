@@ -193,6 +193,16 @@
   margin: 0;
 }
 
+.stale-data-notice {
+  font-size: 0.78rem;
+  color: #a07a30;
+  background: rgba(160, 122, 48, 0.1);
+  border: 1px solid rgba(160, 122, 48, 0.3);
+  border-radius: 4px;
+  padding: 4px 10px;
+  margin: 0 0 6px 0;
+}
+
 .forecast-legend {
   font-size: 0.75rem;
   color: #777777;

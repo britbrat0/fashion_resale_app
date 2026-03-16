@@ -11,6 +11,7 @@ from app.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 CSV_COLUMNS = ["email", "hashed_password", "created_at"]
 
@@ -66,6 +67,18 @@ def login_user(email: str, password: str) -> str:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     return create_token(email)
+
+
+def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(optional_security)):
+    """Return the authenticated user's email, or None if no valid token is provided."""
+    if not credentials:
+        return None
+    try:
+        payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        email: str = payload.get("sub")
+        return email if email else None
+    except JWTError:
+        return None
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:

@@ -33,7 +33,17 @@ export default function VintageExplorer({ onGoHome, onSwitchToDashboard, onSwitc
   // Load tracked keywords on mount
   useEffect(() => {
     api.get('/trends/keywords/list')
-      .then(res => setTrackedKeywords(new Set((res.data.keywords || []).map(k => k.keyword))))
+      .then(res => {
+        const kwSet = new Set((res.data.keywords || []).map(k => k.keyword))
+        // For guests, also seed from sessionStorage
+        if (!isAuthenticated) {
+          try {
+            JSON.parse(sessionStorage.getItem('guest_tracked_keywords') || '[]')
+              .forEach(kw => kwSet.add(kw))
+          } catch {}
+        }
+        setTrackedKeywords(kwSet)
+      })
       .catch(() => {})
   }, [])
 
@@ -44,7 +54,18 @@ export default function VintageExplorer({ onGoHome, onSwitchToDashboard, onSwitc
   }, [])
 
   const handleTrackKeyword = useCallback(async (kw) => {
-    if (!isAuthenticated) { openSignIn('Sign in to track keywords on Trend Forecast'); return }
+    if (!isAuthenticated) {
+      // Guest: save to sessionStorage for session-only tracking
+      try {
+        const existing = JSON.parse(sessionStorage.getItem('guest_tracked_keywords') || '[]')
+        if (!existing.includes(kw)) {
+          sessionStorage.setItem('guest_tracked_keywords', JSON.stringify([...existing, kw]))
+        }
+      } catch {}
+      setTrackedKeywords(prev => new Set([...prev, kw]))
+      showToast(`"${kw}" added to Trend Forecast (this session)`)
+      return
+    }
     if (trackedKeywords.has(kw)) return
     try {
       await api.post(`/trends/keywords/${encodeURIComponent(kw)}/track`)
@@ -109,9 +130,6 @@ export default function VintageExplorer({ onGoHome, onSwitchToDashboard, onSwitc
           <div className="nav-toggle">
             <button className="nav-toggle-btn" onClick={onSwitchToDashboard}>
               Trend Forecast
-              {isAuthenticated && trackedKeywords.size > 0 && (
-                <span className="nav-toggle-badge">{trackedKeywords.size}</span>
-              )}
             </button>
             <button className="nav-toggle-btn active">
               Vintage
@@ -119,7 +137,7 @@ export default function VintageExplorer({ onGoHome, onSwitchToDashboard, onSwitc
           </div>
         </div>
         {isAuthenticated
-          ? <button className="logout-btn" onClick={logout}>Sign Out</button>
+          ? <button className="logout-btn" onClick={() => { logout(); onGoHome() }}>Sign Out</button>
           : <button className="logout-btn" onClick={openSignIn}>Sign In</button>
         }
       </header>
