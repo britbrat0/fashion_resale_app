@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="docs/logo.jpg" alt="ratadat logo" width="180" />
+  <img src="docs/logo.jpg" alt="ratadat logo" width="480" />
 </p>
-
-<h1 align="center">ratadat</h1>
 
 <p align="center">
   A full-stack web application for detecting and predicting fashion resale trend cycles, delivering actionable market insight for vintage and secondhand sellers, and classifying vintage garments by era. Built with React, FastAPI, SQLite, and Claude AI.
