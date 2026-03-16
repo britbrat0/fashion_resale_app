@@ -1,4 +1,4 @@
-# ratadat
+# ratadat app
 
 A full-stack web application for detecting and predicting fashion resale trend cycles, and classifying vintage garments by era. Built with React, FastAPI, SQLite, and Claude AI.
 
